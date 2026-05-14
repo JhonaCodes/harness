@@ -8,6 +8,14 @@ Harness evaluates the project and task, selects configured skills, then chooses:
 - `tdd`: RED -> GREEN -> REFACTOR -> AUDIT.
 - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
 
+For SDD work, harness installs an agent process:
+
+- leader coordinates and does not implement application code;
+- spec_author writes requirements/design/tasks and stops for approval;
+- implementer handles exactly one approved feature and writes tests;
+- reviewer approves or rejects without editing code;
+- subagents write outputs to `progress/` and return only file references.
+
 ## Install
 
 ```bash
@@ -53,6 +61,14 @@ Global skills live in `~/.harness/skills.json`; project skills live in `.harness
 ```
 
 Harness selects skills by task text, project profile, and file context.
+
+## Process Rules
+
+- One feature at a time.
+- No `done` without green verification.
+- `progress/current.md` is live session state.
+- `progress/history.md` is append-only session history.
+- If blocked, document the blocker in `progress/current.md` and stop.
 
 ## LLM Entrypoints
 

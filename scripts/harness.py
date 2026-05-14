@@ -362,6 +362,20 @@ Use strict Spec Driven Development:
 
 `pending -> spec_ready -> human approval -> in_progress -> implementer -> reviewer -> done`
 
+## Runtime Roles
+
+- Leader: coordinates, decomposes, and launches subagents. The leader does not implement application code.
+- Spec author: writes requirements/design/tasks and stops at `spec_ready`.
+- Implementer: implements exactly one approved feature and writes tests.
+- Reviewer: reviews only, runs verification, and writes a verdict.
+
+## State Rules
+
+- Work on one feature at a time.
+- Keep `progress/current.md` updated during the session.
+- Subagents write outputs to files under `progress/` and return only a short reference.
+- Move the closure summary to `progress/history.md` before marking work complete.
+
 Do not implement a pending SDD feature until specs exist.
 Do not implement a `spec_ready` feature until a human approves it.
 Every completed `R<n>` requirement must map to at least one test.
@@ -382,6 +396,8 @@ Selected skills: {skills}.
 - `tdd`: RED -> GREEN -> REFACTOR -> AUDIT.
 - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
 - Run `./init.sh` before closing TDD/SDD work.
+- For SDD, use leader/spec_author/implementer/reviewer roles and keep subagent results in `progress/`.
+- Work on only one feature at a time.
 
 {END_MARKER}
 """
@@ -411,7 +427,16 @@ Each SDD feature uses:
 
 Flow:
 
-`pending -> spec_ready -> human approval -> in_progress -> review -> done`
+`pending -> spec_ready -> human approval -> in_progress -> implementer -> reviewer -> done`
+
+## Process Rules
+
+- The leader coordinates and does not implement application code.
+- The spec author creates specs and stops at `spec_ready`.
+- The implementer works on exactly one approved feature.
+- The reviewer never edits code; it approves or rejects with concrete evidence.
+- Subagents write results to files in `progress/` and return only the file reference.
+- Do not mark a feature `done` until `./init.sh` is green and review is approved.
 """
     return {
         "docs/verification.md": verification,
@@ -439,17 +464,95 @@ def feature_list(root: Path, repo: str | None) -> str:
 
 
 def agent_file(role: str) -> str:
-    return f"""# {role.replace('_', ' ').title()} Agent
+    if role == "leader":
+        return """# Leader Agent
 
-Read `AGENTS.md`, `HARNESS.md`, `feature_list.json` when present, and `progress/current.md`.
+You coordinate and decompose work. You do not implement application code directly.
 
-Role:
-- leader: orchestrate only.
-- spec_author: write SDD specs only.
-- implementer: implement approved specs and update tests.
-- reviewer: review only and write a verdict.
+## Startup
 
-Never skip the human approval gate for `spec_ready` features.
+1. Read `AGENTS.md`, `HARNESS.md`, `feature_list.json`, and `progress/current.md`.
+2. Run `./init.sh`. If it fails, stop and report the blocker.
+3. Select one feature only.
+
+## Delegation
+
+- If a feature is `pending`, launch or act as spec_author, create specs, set `spec_ready`, then stop for human approval.
+- If a feature is `spec_ready`, continue only after explicit human approval.
+- If implementation is needed, launch one implementer.
+- If investigation is needed, launch 2-3 explorers with narrow questions.
+- After implementation, launch one reviewer before anything becomes `done`.
+
+## Anti Telephone Rule
+
+Subagents must write outputs to files under `progress/` and reply only with a reference, for example:
+
+`done -> progress/impl_<feature>.md`
+
+Do not accept long chat-only reports as final subagent output.
+"""
+    if role == "spec_author":
+        return """# Spec Author Agent
+
+You write specs for exactly one pending SDD feature. You do not edit application code or tests.
+
+Create:
+
+- `specs/<feature>/requirements.md`
+- `specs/<feature>/design.md`
+- `specs/<feature>/tasks.md`
+
+Then set the feature to `spec_ready` and stop for human approval.
+
+Each requirement must be testable and use a stable `R<n>` id.
+Your final response is only:
+
+`spec_ready -> specs/<feature>/`
+"""
+    if role == "implementer":
+        return """# Implementer Agent
+
+You implement exactly one approved SDD feature.
+
+## Protocol
+
+1. Read `AGENTS.md`, `HARNESS.md`, `docs/architecture.md`, `docs/conventions.md`, and the feature specs.
+2. Change the feature to `in_progress`.
+3. Record the active feature and short plan in `progress/current.md`.
+4. Implement only the approved scope.
+5. Add or update tests for each requirement.
+6. Run `./init.sh`.
+7. Write `progress/impl_<feature>.md` with files changed, tests run, and requirement-to-test traceability.
+8. Do not mark `done`; wait for reviewer approval.
+
+Final response:
+
+`done -> progress/impl_<feature>.md`
+
+or
+
+`blocked -> progress/current.md`
+"""
+    return """# Reviewer Agent
+
+You review only. You do not edit code.
+
+## Protocol
+
+1. Read `HARNESS.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, and `CHECKPOINTS.md`.
+2. Inspect modified files and `progress/impl_<feature>.md`.
+3. Verify every requirement maps to at least one test.
+4. Verify every task is complete or has a documented blocker.
+5. Run `./init.sh`.
+6. Write the verdict to `progress/review_<feature>.md`.
+
+Final response:
+
+`APPROVED -> progress/review_<feature>.md`
+
+or
+
+`CHANGES_REQUESTED -> progress/review_<feature>.md`
 """
 
 
@@ -467,7 +570,7 @@ def files_for(root: Path, workflow: str, decision: Decision) -> dict[str, str]:
         files.update(
             {
                 "feature_list.json": feature_list(root, decision.repo),
-                "CHECKPOINTS.md": "# CHECKPOINTS\n\n- [ ] `./init.sh` passes.\n- [ ] Harness state is coherent.\n- [ ] Requirements map to tests for completed SDD features.\n",
+                "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `AGENTS.md`, `HARNESS.md`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, and `docs/verification.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Deprecated behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
                 "progress/history.md": "# Harness History\n\n",
                 "specs/.gitkeep": "",
                 ".claude/agents/leader.md": agent_file("leader"),

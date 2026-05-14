@@ -19,3 +19,11 @@ python3 scripts/harness.py run --project <project> --task "<task>"
 
 Do not install TDD or SDD state when the decision is `simple`.
 Read selected skill paths from the decision output when present.
+
+For SDD:
+
+- Coordinate as leader.
+- Use separate spec author, implementer, and reviewer roles.
+- Keep subagent outputs in `progress/`.
+- Work on one feature at a time.
+- Stop at `spec_ready` until human approval is explicit.
