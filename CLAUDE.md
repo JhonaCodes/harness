@@ -14,6 +14,13 @@ When the user invokes harness, use this repository as the workflow runtime.
 4. If selected skills include `path`, read those skill files before acting.
 5. Never hardcode private project paths into this repository.
 
+When working inside a project where harness has already been applied, first read:
+
+- `HARNESS.md`
+- `.harness/config.json`
+- `.harness/skills.json`
+- `.harness/memory.json`
+
 ## Subagent Rules For SDD
 
 - Act as leader by default.

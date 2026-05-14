@@ -45,6 +45,16 @@ Use a GitHub repo directly:
 harness run --project owner/repo --task "triage issues and set up SDD"
 ```
 
+When TDD or SDD is selected, harness installs auto-adoption entrypoints in the target project:
+
+- `AGENTS.md` for Codex-compatible agents.
+- `CLAUDE.md` for Claude.
+- `GEMINI.md` for Gemini.
+- `HARNESS.md` as the shared runtime contract.
+- `.harness/config.json`, `.harness/skills.json`, `.harness/memory.json`.
+
+When `simple` is selected, harness installs nothing.
+
 ## Skills
 
 Global skills live in `~/.harness/skills.json`; project skills live in `.harness/skills.json`.
@@ -61,6 +71,24 @@ Global skills live in `~/.harness/skills.json`; project skills live in `.harness
 ```
 
 Harness selects skills by task text, project profile, and file context.
+
+Manage project skills without editing JSON manually:
+
+```bash
+harness skill add --project api \
+  --name backend-api \
+  --triggers api,endpoint,auth,database \
+  --path /path/to/SKILL.md
+
+harness skill list --project api
+```
+
+Manage project memory:
+
+```bash
+harness memory add --project api --key api_style --value "Use /v1 endpoints only"
+harness memory list --project api
+```
 
 ## Process Rules
 

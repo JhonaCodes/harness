@@ -58,7 +58,7 @@ python3 <this-skill>/scripts/harness.py register --alias api --path /path/to/pro
 ## What Gets Installed
 
 - `simple`: no files; writes only a dry-run/report message when requested.
-- `tdd`: managed TDD section in `AGENTS.md`, `HARNESS.md`, `docs/verification.md`, `init.sh`, `progress/current.md`.
+- `tdd`: auto-adoption entrypoints (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), `HARNESS.md`, `.harness/config.json`, `.harness/skills.json`, `.harness/memory.json`, `docs/verification.md`, `init.sh`, `progress/current.md`.
 - `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, and `.claude/agents/{leader,spec_author,implementer,reviewer}.md`.
 
 ## Safety
@@ -85,4 +85,13 @@ Each entry:
   "description": "Backend API implementation rules",
   "path": "/path/to/SKILL.md"
 }
+```
+
+Use commands instead of editing JSON manually:
+
+```bash
+harness skill add --project <project> --name backend-api --triggers api,endpoint,auth --path /path/to/SKILL.md
+harness skill list --project <project>
+harness memory add --project <project> --key rule --value "project-specific note"
+harness memory list --project <project>
 ```

@@ -20,6 +20,13 @@ python3 scripts/harness.py run --project <project> --task "<task>"
 Do not install TDD or SDD state when the decision is `simple`.
 Read selected skill paths from the decision output when present.
 
+When the target project already contains harness files, first read:
+
+- `HARNESS.md`
+- `.harness/config.json`
+- `.harness/skills.json`
+- `.harness/memory.json`
+
 For SDD:
 
 - Coordinate as leader.

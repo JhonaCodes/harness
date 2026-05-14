@@ -127,6 +127,13 @@ def register_alias(alias: str, path: str, project_map: Path) -> None:
     print(json.dumps({"alias": alias, "path": str(root), "project_map": str(project_map.expanduser())}, indent=2))
 
 
+def resolve_project_root(project: str | None, checkout_root: str, project_map: str) -> Path:
+    root, _ = resolve_project(project, Path(checkout_root), Path(project_map))
+    if not root.is_dir():
+        raise SystemExit(f"Project root does not exist or is not a directory: {root}")
+    return root
+
+
 def discover_files(root: Path, limit: int = 220) -> list[str]:
     ignored = {".git", "target", "build", "dist", ".dart_tool", "node_modules", "__pycache__", ".venv"}
     out: list[str] = []
@@ -382,6 +389,77 @@ Every completed `R<n>` requirement must map to at least one test.
 """
 
 
+def project_config(root: Path, workflow: str, decision: Decision) -> str:
+    data = {
+        "schema_version": 1,
+        "project": root.name,
+        "workflow": workflow,
+        "profile": decision.profile,
+        "adoption": {
+            "codex": "AGENTS.md",
+            "claude": "CLAUDE.md",
+            "gemini": "GEMINI.md",
+            "contract": "HARNESS.md",
+        },
+        "rules": {
+            "auto_inspect_on_open": True,
+            "simple_installs_no_files": True,
+            "one_feature_at_a_time": workflow == "sdd",
+            "human_approval_required_for_spec_ready": workflow == "sdd",
+            "review_required_before_done": workflow == "sdd",
+        },
+    }
+    if decision.repo:
+        data["repo"] = decision.repo
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def empty_skills() -> str:
+    return "[]\n"
+
+
+def empty_memory() -> str:
+    return json.dumps({"schema_version": 1, "entries": {}}, indent=2, ensure_ascii=False) + "\n"
+
+
+def auto_adoption_entrypoint(kind: str, workflow: str, decision: Decision) -> str:
+    title = {
+        "codex": "Repository Guidelines",
+        "claude": "Claude Harness Entrypoint",
+        "gemini": "Gemini Harness Entrypoint",
+    }[kind]
+    return f"""# {title}
+
+{BEGIN_MARKER}
+
+## Harness Auto-Adoption
+
+This project uses Harness as its workflow runtime.
+
+Before answering, editing, or delegating project work:
+
+1. Read `HARNESS.md`.
+2. Read `.harness/config.json`, `.harness/skills.json`, and `.harness/memory.json` when present.
+3. Evaluate the user task with Harness semantics:
+   - `simple`: direct work, minimal verification, no persistent state.
+   - `tdd`: RED -> GREEN -> REFACTOR -> AUDIT.
+   - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
+4. Use selected skills from `.harness/skills.json` and global Harness skills when their triggers match.
+5. For SDD, do not skip `spec_ready` human approval and do not mark `done` without reviewer approval.
+
+Default installed workflow: `{workflow}`.
+Reason: {decision.reason}
+
+Useful command when a shell is available:
+
+```bash
+harness inspect --project . --task "<user task>"
+```
+
+{END_MARKER}
+"""
+
+
 def managed_section(workflow: str, decision: Decision) -> str:
     skills = ", ".join(skill["name"] for skill in decision.selected_skills) or "none"
     return f"""{BEGIN_MARKER}
@@ -560,8 +638,14 @@ def files_for(root: Path, workflow: str, decision: Decision) -> dict[str, str]:
     if workflow == "simple":
         return {}
     files = {
+        "AGENTS.md": auto_adoption_entrypoint("codex", workflow, decision),
+        "CLAUDE.md": auto_adoption_entrypoint("claude", workflow, decision),
+        "GEMINI.md": auto_adoption_entrypoint("gemini", workflow, decision),
         "HARNESS.md": harness_md(workflow, decision),
         "init.sh": init_sh(decision.profile, workflow),
+        ".harness/config.json": project_config(root, workflow, decision),
+        ".harness/skills.json": empty_skills(),
+        ".harness/memory.json": empty_memory(),
         "docs/verification.md": docs(decision.profile, workflow, decision)["docs/verification.md"],
         "progress/current.md": "# Current Harness Session\n\nStatus: idle\n",
     }
@@ -587,6 +671,20 @@ def write_file(path: Path, content: str, dry_run: bool, actions: list[str], conf
         current = path.read_text(encoding="utf-8")
         if current == content:
             actions.append(f"unchanged {path}")
+            return
+        if BEGIN_MARKER in current and END_MARKER in current and BEGIN_MARKER in content and END_MARKER in content:
+            before = current.split(BEGIN_MARKER)[0].rstrip()
+            after = current.split(END_MARKER, 1)[1].lstrip()
+            merged = before + "\n\n" + content.strip() + ("\n" + after if after else "") + "\n"
+            actions.append(f"refresh managed file {path}")
+            if not dry_run:
+                path.write_text(merged, encoding="utf-8")
+            return
+        if path.name in {"AGENTS.md", "CLAUDE.md", "GEMINI.md"} and BEGIN_MARKER in content and END_MARKER in content:
+            merged = current.rstrip() + "\n\n" + content.strip() + "\n"
+            actions.append(f"append managed file {path}")
+            if not dry_run:
+                path.write_text(merged, encoding="utf-8")
             return
         if path.name == ".gitkeep" and current == "":
             actions.append(f"unchanged {path}")
@@ -646,11 +744,72 @@ def apply_decision(root: Path, decision: Decision, dry_run: bool) -> int:
         write_report(root, decision, actions, conflicts, dry_run)
         return 0
 
-    merge_agents(root / "AGENTS.md", decision.workflow, decision, dry_run, actions)
     for rel, content in files_for(root, decision.workflow, decision).items():
         write_file(root / rel, content, dry_run, actions, conflicts)
     write_report(root, decision, actions, conflicts, dry_run)
     return 1 if conflicts else 0
+
+
+def project_skills_path(root: Path) -> Path:
+    return root / ".harness" / "skills.json"
+
+
+def project_memory_path(root: Path) -> Path:
+    return root / ".harness" / "memory.json"
+
+
+def parse_triggers(raw: str) -> list[str]:
+    return [item.strip().lower() for item in raw.split(",") if item.strip()]
+
+
+def command_skill_add(args: argparse.Namespace) -> int:
+    root = resolve_project_root(args.project, args.checkout_root, args.project_map)
+    path = project_skills_path(root)
+    data = read_json_object(path, [])
+    if isinstance(data, dict):
+        data = data.get("skills", [])
+    if not isinstance(data, list):
+        raise SystemExit(f"Skills registry must be a list: {path}")
+    entry = {
+        "name": args.name,
+        "triggers": parse_triggers(args.triggers),
+        "description": args.description or "",
+        "path": args.path,
+    }
+    data = [item for item in data if not (isinstance(item, dict) and item.get("name") == args.name)]
+    data.append(entry)
+    write_json(path, data)
+    print(json.dumps({"project": str(root), "skill": entry}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def command_skill_list(args: argparse.Namespace) -> int:
+    root = resolve_project_root(args.project, args.checkout_root, args.project_map)
+    data = read_json_object(project_skills_path(root), [])
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+    return 0
+
+
+def command_memory_add(args: argparse.Namespace) -> int:
+    root = resolve_project_root(args.project, args.checkout_root, args.project_map)
+    path = project_memory_path(root)
+    data = read_json_object(path, {"schema_version": 1, "entries": {}})
+    if not isinstance(data, dict):
+        raise SystemExit(f"Memory must be a JSON object: {path}")
+    entries = data.setdefault("entries", {})
+    if not isinstance(entries, dict):
+        raise SystemExit(f"Memory entries must be a JSON object: {path}")
+    entries[args.key] = args.value
+    write_json(path, data)
+    print(json.dumps({"project": str(root), "key": args.key, "value": args.value}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def command_memory_list(args: argparse.Namespace) -> int:
+    root = resolve_project_root(args.project, args.checkout_root, args.project_map)
+    data = read_json_object(project_memory_path(root), {"schema_version": 1, "entries": {}})
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+    return 0
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -700,6 +859,34 @@ def build_parser() -> argparse.ArgumentParser:
     register.add_argument("--alias", required=True)
     register.add_argument("--path", required=True)
 
+    skill = sub.add_parser("skill", help="Manage project skill registry.")
+    skill_sub = skill.add_subparsers(dest="skill_command", required=True)
+    skill_add = skill_sub.add_parser("add", help="Add or replace a project skill.")
+    add_config(skill_add)
+    skill_add.add_argument("--project", required=True)
+    skill_add.add_argument("--checkout-root", default="~/Projects")
+    skill_add.add_argument("--name", required=True)
+    skill_add.add_argument("--triggers", required=True, help="Comma-separated trigger terms")
+    skill_add.add_argument("--path", required=True)
+    skill_add.add_argument("--description", default="")
+    skill_list = skill_sub.add_parser("list", help="List project skills.")
+    add_config(skill_list)
+    skill_list.add_argument("--project", required=True)
+    skill_list.add_argument("--checkout-root", default="~/Projects")
+
+    memory = sub.add_parser("memory", help="Manage project harness memory.")
+    memory_sub = memory.add_subparsers(dest="memory_command", required=True)
+    memory_add = memory_sub.add_parser("add", help="Add or replace a memory entry.")
+    add_config(memory_add)
+    memory_add.add_argument("--project", required=True)
+    memory_add.add_argument("--checkout-root", default="~/Projects")
+    memory_add.add_argument("--key", required=True)
+    memory_add.add_argument("--value", required=True)
+    memory_list = memory_sub.add_parser("list", help="List project memory.")
+    add_config(memory_list)
+    memory_list.add_argument("--project", required=True)
+    memory_list.add_argument("--checkout-root", default="~/Projects")
+
     return parser
 
 
@@ -713,6 +900,16 @@ def main() -> int:
         return command_inspect(args)
     if args.command == "run":
         return command_run(args)
+    if args.command == "skill":
+        if args.skill_command == "add":
+            return command_skill_add(args)
+        if args.skill_command == "list":
+            return command_skill_list(args)
+    if args.command == "memory":
+        if args.memory_command == "add":
+            return command_memory_add(args)
+        if args.memory_command == "list":
+            return command_memory_list(args)
     parser.error(f"Unknown command: {args.command}")
     return 2
 
