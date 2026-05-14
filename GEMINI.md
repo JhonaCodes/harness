@@ -1,6 +1,6 @@
-# Gemini Harness Entrypoint
+# Gemini Harness Adapter
 
-Use `scripts/harness.py` as the source of truth for project workflow decisions.
+This file is a compatibility adapter. The universal source of truth is the Harness runtime itself and, inside an applied project, `HARNESS.md` plus `.harness/ENTRYPOINT.md`.
 
 If the user did not provide a project, ask for one of:
 
@@ -13,8 +13,8 @@ Workflow:
 
 ```bash
 python3 scripts/harness.py inspect --project <project> --task "<task>"
-python3 scripts/harness.py run --project <project> --task "<task>" --dry-run
-python3 scripts/harness.py run --project <project> --task "<task>"
+python3 scripts/harness.py run --project <project> --task "<task>" --adapters all --dry-run
+python3 scripts/harness.py run --project <project> --task "<task>" --adapters all
 ```
 
 Do not install TDD or SDD state when the decision is `simple`.
@@ -23,7 +23,9 @@ Read selected skill paths from the decision output when present.
 When the target project already contains harness files, first read:
 
 - `HARNESS.md`
+- `.harness/ENTRYPOINT.md`
 - `.harness/config.json`
+- `.harness/workflow.json`
 - `.harness/skills.json`
 - `.harness/memory.json`
 

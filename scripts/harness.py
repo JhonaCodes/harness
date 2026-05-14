@@ -26,6 +26,23 @@ DEFAULT_PROJECT_MAP = DEFAULT_CONFIG_DIR / "projects.json"
 DEFAULT_GLOBAL_SKILLS = DEFAULT_CONFIG_DIR / "skills.json"
 BEGIN_MARKER = "<!-- BEGIN HARNESS_MANAGED -->"
 END_MARKER = "<!-- END HARNESS_MANAGED -->"
+DEFAULT_ADAPTERS: dict[str, dict[str, str]] = {
+    "agents": {
+        "file": "AGENTS.md",
+        "name": "Agents Adapter",
+        "description": "Compatibility entrypoint for agents that read AGENTS.md.",
+    },
+    "claude": {
+        "file": "CLAUDE.md",
+        "name": "Claude Adapter",
+        "description": "Compatibility entrypoint for Claude-style project instructions.",
+    },
+    "gemini": {
+        "file": "GEMINI.md",
+        "name": "Gemini Adapter",
+        "description": "Compatibility entrypoint for Gemini-style project instructions.",
+    },
+}
 
 
 @dataclass
@@ -267,6 +284,21 @@ def verification_commands(profile: str) -> list[str]:
     return ["# add project-specific verification command"]
 
 
+def parse_adapters(raw: str) -> list[dict[str, str]]:
+    value = raw.strip().lower()
+    if value == "none":
+        return []
+    if value == "all":
+        return [dict(item) for item in DEFAULT_ADAPTERS.values()]
+    selected: list[dict[str, str]] = []
+    for key in [part.strip().lower() for part in raw.split(",") if part.strip()]:
+        if key not in DEFAULT_ADAPTERS:
+            valid = ", ".join(["all", "none", *DEFAULT_ADAPTERS])
+            raise SystemExit(f"Unknown adapter '{key}'. Valid values: {valid}")
+        selected.append(dict(DEFAULT_ADAPTERS[key]))
+    return selected
+
+
 def decide(root: Path, repo: str | None, profile: str, task: str, workflow: str, global_skills: Path) -> Decision:
     context = inspect_repo(root, repo, profile)
     selected_workflow, reason = classify_workflow(task, context, workflow)
@@ -330,7 +362,7 @@ run_step() {{
 }}
 
 echo "── Harness validation ({workflow}/{profile}) ─────────────"
-for f in AGENTS.md HARNESS.md docs/verification.md progress/current.md; do
+for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json docs/verification.md progress/current.md; do
   if [ -f "$f" ]; then ok "Exists $f"; else fail "Missing $f"; EXIT_CODE=1; fi
 done
 {sdd_validation}
@@ -347,23 +379,38 @@ def harness_md(workflow: str, decision: Decision) -> str:
     if workflow == "tdd":
         return f"""# Harness
 
-Workflow: TDD
+{BEGIN_MARKER}
+
+Universal Harness runtime for any LLM.
+
+Workflow: `tdd`
 
 Reason: {decision.reason}
 
-Use RED -> GREEN -> REFACTOR -> AUDIT.
+The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific files are adapters only.
+
+Use RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> AUDIT.
 
 1. Write or identify a failing test for the behavior.
-2. Implement the smallest change that passes.
-3. Refactor while tests remain green.
-4. Run `./init.sh`.
-5. Record evidence in `progress/current.md`.
+2. If the expected behavior is ambiguous, stop and ask for human clarification before implementing.
+3. Implement the smallest change that passes.
+4. Refactor while tests remain green.
+5. Run `./init.sh`.
+6. Record evidence in `progress/current.md`.
+
+{END_MARKER}
 """
     return f"""# Harness
 
-Workflow: SDD
+{BEGIN_MARKER}
+
+Universal Harness runtime for any LLM.
+
+Workflow: `sdd`
 
 Reason: {decision.reason}
+
+The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific files are adapters only.
 
 Use strict Spec Driven Development:
 
@@ -386,6 +433,8 @@ Use strict Spec Driven Development:
 Do not implement a pending SDD feature until specs exist.
 Do not implement a `spec_ready` feature until a human approves it.
 Every completed `R<n>` requirement must map to at least one test.
+
+{END_MARKER}
 """
 
 
@@ -395,15 +444,19 @@ def project_config(root: Path, workflow: str, decision: Decision) -> str:
         "project": root.name,
         "workflow": workflow,
         "profile": decision.profile,
-        "adoption": {
-            "codex": "AGENTS.md",
-            "claude": "CLAUDE.md",
-            "gemini": "GEMINI.md",
+        "source_of_truth": {
             "contract": "HARNESS.md",
+            "entrypoint": ".harness/ENTRYPOINT.md",
+            "workflow": ".harness/workflow.json",
+            "skills": ".harness/skills.json",
+            "memory": ".harness/memory.json",
+            "adapters": ".harness/adapters.json",
         },
         "rules": {
             "auto_inspect_on_open": True,
             "simple_installs_no_files": True,
+            "tool_specific_files_are_adapters": True,
+            "human_checkpoint_for_ambiguous_tdd": workflow == "tdd",
             "one_feature_at_a_time": workflow == "sdd",
             "human_approval_required_for_spec_ready": workflow == "sdd",
             "review_required_before_done": workflow == "sdd",
@@ -422,30 +475,87 @@ def empty_memory() -> str:
     return json.dumps({"schema_version": 1, "entries": {}}, indent=2, ensure_ascii=False) + "\n"
 
 
-def auto_adoption_entrypoint(kind: str, workflow: str, decision: Decision) -> str:
-    title = {
-        "codex": "Repository Guidelines",
-        "claude": "Claude Harness Entrypoint",
-        "gemini": "Gemini Harness Entrypoint",
-    }[kind]
-    return f"""# {title}
+def workflow_json(workflow: str, decision: Decision, adapters: list[dict[str, str]]) -> str:
+    data = {
+        "schema_version": 1,
+        "workflow": workflow,
+        "reason": decision.reason,
+        "profile": decision.profile,
+        "selected_skills": decision.selected_skills,
+        "adapters": adapters,
+        "rules": {
+            "simple_installs_no_files": workflow == "simple",
+            "tdd_human_checkpoint_if_ambiguous": workflow == "tdd",
+            "sdd_human_approval_required": workflow == "sdd",
+            "review_required_before_done": workflow in {"tdd", "sdd"},
+        },
+    }
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def adapters_json(adapters: list[dict[str, str]]) -> str:
+    data = {
+        "schema_version": 1,
+        "source_of_truth": ["HARNESS.md", ".harness/ENTRYPOINT.md"],
+        "adapters": adapters,
+    }
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def universal_entrypoint(workflow: str, decision: Decision) -> str:
+    skills = ", ".join(skill["name"] for skill in decision.selected_skills) or "none"
+    return f"""# Harness Entrypoint
 
 {BEGIN_MARKER}
 
-## Harness Auto-Adoption
+This is the neutral startup contract for any LLM working in this project.
 
-This project uses Harness as its workflow runtime.
-
-Before answering, editing, or delegating project work:
+## Startup
 
 1. Read `HARNESS.md`.
-2. Read `.harness/config.json`, `.harness/skills.json`, and `.harness/memory.json` when present.
-3. Evaluate the user task with Harness semantics:
+2. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, and `.harness/memory.json` when present.
+3. If available, inspect the task with:
+   ```bash
+   harness inspect --project . --task "<user task>"
+   ```
+4. Apply the decided workflow:
    - `simple`: direct work, minimal verification, no persistent state.
-   - `tdd`: RED -> GREEN -> REFACTOR -> AUDIT.
+   - `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> AUDIT.
    - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
-4. Use selected skills from `.harness/skills.json` and global Harness skills when their triggers match.
-5. For SDD, do not skip `spec_ready` human approval and do not mark `done` without reviewer approval.
+5. Use matching skills from `.harness/skills.json` and `~/.harness/skills.json`.
+6. Read durable project memory from `.harness/memory.json` and optional global memory if configured.
+
+Default installed workflow: `{workflow}`.
+Reason: {decision.reason}
+Selected skills: {skills}.
+
+## Hard Rules
+
+- Tool-specific files are adapters, not the source of truth.
+- Do not skip the TDD ambiguity checkpoint when behavior is unclear.
+- For SDD, do not skip `spec_ready` human approval.
+- Do not mark work `done` without verification and review evidence.
+
+{END_MARKER}
+"""
+
+
+def adapter_entrypoint(adapter: dict[str, str], workflow: str, decision: Decision) -> str:
+    return f"""# {adapter["name"]}
+
+{BEGIN_MARKER}
+
+## Harness Adapter
+
+This file is a compatibility adapter. The source of truth is `HARNESS.md` and `.harness/ENTRYPOINT.md`.
+
+Before answering, editing, or delegating:
+
+1. Read `HARNESS.md`.
+2. Read `.harness/ENTRYPOINT.md`.
+3. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, and `.harness/memory.json` when present.
+4. Apply the workflow decided by the universal Harness runtime.
+5. Use selected project/global skills when their triggers match.
 
 Default installed workflow: `{workflow}`.
 Reason: {decision.reason}
@@ -455,27 +565,6 @@ Useful command when a shell is available:
 ```bash
 harness inspect --project . --task "<user task>"
 ```
-
-{END_MARKER}
-"""
-
-
-def managed_section(workflow: str, decision: Decision) -> str:
-    skills = ", ".join(skill["name"] for skill in decision.selected_skills) or "none"
-    return f"""{BEGIN_MARKER}
-
-## Harness Runtime
-
-Selected workflow: `{workflow}`.
-Reason: {decision.reason}
-Selected skills: {skills}.
-
-- `simple`: direct work, minimal verification, no persistent harness files.
-- `tdd`: RED -> GREEN -> REFACTOR -> AUDIT.
-- `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
-- Run `./init.sh` before closing TDD/SDD work.
-- For SDD, use leader/spec_author/implementer/reviewer roles and keep subagent results in `progress/`.
-- Work on only one feature at a time.
 
 {END_MARKER}
 """
@@ -549,7 +638,7 @@ You coordinate and decompose work. You do not implement application code directl
 
 ## Startup
 
-1. Read `AGENTS.md`, `HARNESS.md`, `feature_list.json`, and `progress/current.md`.
+1. Read `HARNESS.md`, `.harness/ENTRYPOINT.md`, `feature_list.json`, and `progress/current.md`.
 2. Run `./init.sh`. If it fails, stop and report the blocker.
 3. Select one feature only.
 
@@ -594,7 +683,7 @@ You implement exactly one approved SDD feature.
 
 ## Protocol
 
-1. Read `AGENTS.md`, `HARNESS.md`, `docs/architecture.md`, `docs/conventions.md`, and the feature specs.
+1. Read `HARNESS.md`, `.harness/ENTRYPOINT.md`, `docs/architecture.md`, `docs/conventions.md`, and the feature specs.
 2. Change the feature to `in_progress`.
 3. Record the active feature and short plan in `progress/current.md`.
 4. Implement only the approved scope.
@@ -634,29 +723,35 @@ or
 """
 
 
-def files_for(root: Path, workflow: str, decision: Decision) -> dict[str, str]:
+def files_for(root: Path, workflow: str, decision: Decision, adapters: list[dict[str, str]]) -> dict[str, str]:
     if workflow == "simple":
         return {}
     files = {
-        "AGENTS.md": auto_adoption_entrypoint("codex", workflow, decision),
-        "CLAUDE.md": auto_adoption_entrypoint("claude", workflow, decision),
-        "GEMINI.md": auto_adoption_entrypoint("gemini", workflow, decision),
         "HARNESS.md": harness_md(workflow, decision),
         "init.sh": init_sh(decision.profile, workflow),
+        ".harness/ENTRYPOINT.md": universal_entrypoint(workflow, decision),
         ".harness/config.json": project_config(root, workflow, decision),
+        ".harness/workflow.json": workflow_json(workflow, decision, adapters),
+        ".harness/adapters.json": adapters_json(adapters),
         ".harness/skills.json": empty_skills(),
         ".harness/memory.json": empty_memory(),
         "docs/verification.md": docs(decision.profile, workflow, decision)["docs/verification.md"],
         "progress/current.md": "# Current Harness Session\n\nStatus: idle\n",
     }
+    for adapter in adapters:
+        files[adapter["file"]] = adapter_entrypoint(adapter, workflow, decision)
     if workflow == "sdd":
         files.update(docs(decision.profile, workflow, decision))
         files.update(
             {
                 "feature_list.json": feature_list(root, decision.repo),
-                "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `AGENTS.md`, `HARNESS.md`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, and `docs/verification.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Deprecated behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
+                "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, and `reviewer.md` exist.\n- [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, and `docs/verification.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Deprecated behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
                 "progress/history.md": "# Harness History\n\n",
                 "specs/.gitkeep": "",
+                ".harness/agents/leader.md": agent_file("leader"),
+                ".harness/agents/spec_author.md": agent_file("spec_author"),
+                ".harness/agents/implementer.md": agent_file("implementer"),
+                ".harness/agents/reviewer.md": agent_file("reviewer"),
                 ".claude/agents/leader.md": agent_file("leader"),
                 ".claude/agents/spec_author.md": agent_file("spec_author"),
                 ".claude/agents/implementer.md": agent_file("implementer"),
@@ -680,7 +775,7 @@ def write_file(path: Path, content: str, dry_run: bool, actions: list[str], conf
             if not dry_run:
                 path.write_text(merged, encoding="utf-8")
             return
-        if path.name in {"AGENTS.md", "CLAUDE.md", "GEMINI.md"} and BEGIN_MARKER in content and END_MARKER in content:
+        if path.suffix == ".md" and BEGIN_MARKER in content and END_MARKER in content:
             merged = current.rstrip() + "\n\n" + content.strip() + "\n"
             actions.append(f"append managed file {path}")
             if not dry_run:
@@ -700,30 +795,11 @@ def write_file(path: Path, content: str, dry_run: bool, actions: list[str], conf
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def merge_agents(path: Path, workflow: str, decision: Decision, dry_run: bool, actions: list[str]) -> None:
-    section = managed_section(workflow, decision)
-    if not path.exists():
-        actions.append(f"write {path}")
-        if not dry_run:
-            path.write_text("# Repository Guidelines\n\n" + section, encoding="utf-8")
-        return
-    current = path.read_text(encoding="utf-8")
-    if BEGIN_MARKER in current and END_MARKER in current:
-        before = current.split(BEGIN_MARKER)[0].rstrip()
-        after = current.split(END_MARKER, 1)[1].lstrip()
-        merged = before + "\n\n" + section + ("\n" + after if after else "")
-        actions.append(f"refresh managed section {path}")
-    else:
-        merged = current.rstrip() + "\n\n" + section
-        actions.append(f"append managed section {path}")
-    if not dry_run:
-        path.write_text(merged, encoding="utf-8")
-
-
-def write_report(root: Path, decision: Decision, actions: list[str], conflicts: list[str], dry_run: bool) -> None:
+def write_report(root: Path, decision: Decision, actions: list[str], conflicts: list[str], dry_run: bool, adapters: list[dict[str, str]]) -> None:
     payload = {
         "dry_run": dry_run,
         "decision": asdict(decision),
+        "adapters": adapters,
         "actions": actions,
         "conflicts": conflicts,
     }
@@ -736,17 +812,18 @@ def write_report(root: Path, decision: Decision, actions: list[str], conflicts: 
     target.write_text(text, encoding="utf-8")
 
 
-def apply_decision(root: Path, decision: Decision, dry_run: bool) -> int:
+def apply_decision(root: Path, decision: Decision, dry_run: bool, adapters_raw: str) -> int:
+    adapters = parse_adapters(adapters_raw)
     actions: list[str] = []
     conflicts: list[str] = []
     if decision.workflow == "simple":
         actions.append("simple workflow selected; no harness files installed")
-        write_report(root, decision, actions, conflicts, dry_run)
+        write_report(root, decision, actions, conflicts, dry_run, adapters)
         return 0
 
-    for rel, content in files_for(root, decision.workflow, decision).items():
+    for rel, content in files_for(root, decision.workflow, decision, adapters).items():
         write_file(root / rel, content, dry_run, actions, conflicts)
-    write_report(root, decision, actions, conflicts, dry_run)
+    write_report(root, decision, actions, conflicts, dry_run, adapters)
     return 1 if conflicts else 0
 
 
@@ -817,7 +894,7 @@ def command_run(args: argparse.Namespace) -> int:
     profile = detect_profile(root, args.profile)
     decision = decide(root, repo, profile, args.task, args.workflow, Path(args.global_skills))
     print(json.dumps(asdict(decision), indent=2, ensure_ascii=False))
-    return apply_decision(root, decision, args.dry_run)
+    return apply_decision(root, decision, args.dry_run, args.adapters)
 
 
 def command_inspect(args: argparse.Namespace) -> int:
@@ -849,6 +926,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = sub.add_parser("run", help="Inspect, decide, select skills, and apply the selected workflow.")
     add_common(run)
+    run.add_argument("--adapters", default="all", help="Adapter set to install: all, none, or comma-separated names such as agents,claude,gemini")
     run.add_argument("--dry-run", action="store_true")
 
     inspect_cmd = sub.add_parser("inspect", help="Inspect and decide without applying files.")

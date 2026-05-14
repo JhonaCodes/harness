@@ -47,9 +47,32 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/AGENTS.md", result.stdout)
             self.assertIn("/CLAUDE.md", result.stdout)
             self.assertIn("/GEMINI.md", result.stdout)
+            self.assertIn("/.harness/ENTRYPOINT.md", result.stdout)
             self.assertIn("/.harness/config.json", result.stdout)
+            self.assertIn("/.harness/workflow.json", result.stdout)
+            self.assertIn("/.harness/adapters.json", result.stdout)
             self.assertIn("/.harness/skills.json", result.stdout)
             self.assertIn("/.harness/memory.json", result.stdout)
+
+    def test_adapters_none_installs_only_universal_entrypoints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            result = self.run_harness(
+                "run",
+                "--project",
+                str(project),
+                "--task",
+                "fix failing login test",
+                "--adapters",
+                "none",
+                "--dry-run",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("/HARNESS.md", result.stdout)
+            self.assertIn("/.harness/ENTRYPOINT.md", result.stdout)
+            self.assertNotIn("/AGENTS.md", result.stdout)
+            self.assertNotIn("/CLAUDE.md", result.stdout)
+            self.assertNotIn("/GEMINI.md", result.stdout)
 
     def test_existing_entrypoint_gets_managed_section_appended(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,9 +98,12 @@ class HarnessCliTests(unittest.TestCase):
             project = Path(tmp)
             result = self.run_harness("run", "--project", str(project), "--task", "triage github issues and create API contract specs", "--dry-run")
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("/.harness/ENTRYPOINT.md", result.stdout)
+            self.assertIn("/.harness/workflow.json", result.stdout)
             self.assertIn("/feature_list.json", result.stdout)
             self.assertIn("/CHECKPOINTS.md", result.stdout)
             self.assertIn("/specs/.gitkeep", result.stdout)
+            self.assertIn("/.harness/agents/leader.md", result.stdout)
             self.assertIn("/.claude/agents/leader.md", result.stdout)
 
     def test_skill_add_and_list(self):

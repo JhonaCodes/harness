@@ -1,6 +1,6 @@
-# Claude Harness Entrypoint
+# Claude Harness Adapter
 
-When the user invokes harness, use this repository as the workflow runtime.
+This file is a compatibility adapter. The universal source of truth is the Harness runtime itself and, inside an applied project, `HARNESS.md` plus `.harness/ENTRYPOINT.md`.
 
 1. If no project URL, `owner/repo`, alias, or local path was provided, ask for it.
 2. Run:
@@ -9,7 +9,7 @@ When the user invokes harness, use this repository as the workflow runtime.
    ```
 3. Read the JSON decision:
    - `simple`: do the task directly; do not install files.
-   - `tdd`: run dry-run, apply TDD harness, then use RED -> GREEN -> REFACTOR -> AUDIT.
+   - `tdd`: run dry-run, apply TDD harness, then use RED -> human checkpoint if behavior is ambiguous -> GREEN -> REFACTOR -> AUDIT.
    - `sdd`: run dry-run, apply SDD harness, then create specs and stop for human approval.
 4. If selected skills include `path`, read those skill files before acting.
 5. Never hardcode private project paths into this repository.
@@ -17,7 +17,9 @@ When the user invokes harness, use this repository as the workflow runtime.
 When working inside a project where harness has already been applied, first read:
 
 - `HARNESS.md`
+- `.harness/ENTRYPOINT.md`
 - `.harness/config.json`
+- `.harness/workflow.json`
 - `.harness/skills.json`
 - `.harness/memory.json`
 

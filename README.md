@@ -1,11 +1,13 @@
 # Harness
 
-Portable runtime for Codex, Claude, Gemini, or any LLM agent that needs to decide how much process a project task requires.
+Universal Harness runtime for any LLM that needs to decide how much process a project task requires.
+
+`HARNESS.md` and `.harness/ENTRYPOINT.md` are the source of truth inside a target project. Tool-specific files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are optional adapters that point back to that universal contract.
 
 Harness evaluates the project and task, selects configured skills, then chooses:
 
 - `simple`: no persistent files, direct work.
-- `tdd`: RED -> GREEN -> REFACTOR -> AUDIT.
+- `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> AUDIT.
 - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
 
 For SDD work, harness installs an agent process:
@@ -45,13 +47,23 @@ Use a GitHub repo directly:
 harness run --project owner/repo --task "triage issues and set up SDD"
 ```
 
-When TDD or SDD is selected, harness installs auto-adoption entrypoints in the target project:
+Choose adapters explicitly when needed:
 
-- `AGENTS.md` for Codex-compatible agents.
-- `CLAUDE.md` for Claude.
-- `GEMINI.md` for Gemini.
-- `HARNESS.md` as the shared runtime contract.
-- `.harness/config.json`, `.harness/skills.json`, `.harness/memory.json`.
+```bash
+harness run --project /path/to/project --task "fix failing login test" --adapters all
+harness run --project /path/to/project --task "fix failing login test" --adapters agents,claude,gemini
+harness run --project /path/to/project --task "fix failing login test" --adapters none
+```
+
+Default is `--adapters all` for compatibility.
+
+When TDD or SDD is selected, harness installs the universal runtime in the target project:
+
+- `HARNESS.md` as the runtime contract.
+- `.harness/ENTRYPOINT.md` as the neutral startup instructions.
+- `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`.
+- `.harness/agents/*` for universal SDD role definitions when SDD is selected.
+- Optional adapter files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`, depending on `--adapters`.
 
 When `simple` is selected, harness installs nothing.
 
@@ -94,14 +106,15 @@ harness memory list --project api
 
 - One feature at a time.
 - No `done` without green verification.
+- TDD pauses for human clarification when expected behavior is ambiguous.
 - `progress/current.md` is live session state.
 - `progress/history.md` is append-only session history.
 - If blocked, document the blocker in `progress/current.md` and stop.
 
-## LLM Entrypoints
+## LLM Adoption
 
-- Codex: `SKILL.md`
-- Claude: `CLAUDE.md`
-- Gemini: `GEMINI.md`
+Any LLM can adopt harness by reading `HARNESS.md` and `.harness/ENTRYPOINT.md` in the target project.
 
-All three point to the same runtime: `scripts/harness.py`.
+SDD role definitions live under `.harness/agents/*`; tool-specific agent folders are compatibility copies.
+
+Adapters are compatibility files only. New adapters can be added through `.harness/adapters.json` without changing the core runtime.

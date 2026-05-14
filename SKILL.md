@@ -1,6 +1,6 @@
 ---
 name: harness
-description: Runtime that evaluates a project task, selects relevant skills, and decides whether to use simple, TDD, or SDD workflow. Use when the user invokes harness, wants repo automation, issue-driven work, TDD/SDD selection, project workflow setup, or a portable workflow for Codex, Claude, Gemini, or another LLM.
+description: Universal runtime that evaluates a project task, selects relevant skills, and decides whether to use simple, TDD, or SDD workflow. Use when the user invokes harness, wants repo automation, issue-driven work, TDD/SDD selection, project workflow setup, or an LLM-agnostic workflow.
 ---
 
 # Harness
@@ -10,7 +10,7 @@ Use this skill as the entrypoint for project work. The harness evaluates the pro
 ## Decision Rule
 
 - `simple`: use for small questions, one-off edits, obvious fixes, or work that does not need repo-level process. Do not install files.
-- `tdd`: use for bugs, focused behavior changes, or small features where tests should drive implementation.
+- `tdd`: use for bugs, focused behavior changes, or small features where tests should drive implementation; pause for human clarification when expected behavior is ambiguous.
 - `sdd`: use for multi-issue backlogs, product/API contracts, cross-module work, human-approved specs, or when the user explicitly asks for SDD.
 - `auto`: inspect the request and repo, then choose one of the above. Default to `simple` unless the work clearly benefits from persistent workflow state.
 
@@ -38,6 +38,7 @@ Run with dry-run before applying:
 python3 <this-skill>/scripts/harness.py run \
   --project <path|alias|owner/repo|url> \
   --task "<task>" \
+  --adapters all \
   --dry-run
 ```
 
@@ -46,7 +47,8 @@ Apply:
 ```bash
 python3 <this-skill>/scripts/harness.py run \
   --project <path|alias|owner/repo|url> \
-  --task "<task>"
+  --task "<task>" \
+  --adapters all
 ```
 
 Register a user-local alias:
@@ -58,8 +60,16 @@ python3 <this-skill>/scripts/harness.py register --alias api --path /path/to/pro
 ## What Gets Installed
 
 - `simple`: no files; writes only a dry-run/report message when requested.
-- `tdd`: auto-adoption entrypoints (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), `HARNESS.md`, `.harness/config.json`, `.harness/skills.json`, `.harness/memory.json`, `docs/verification.md`, `init.sh`, `progress/current.md`.
-- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, and `.claude/agents/{leader,spec_author,implementer,reviewer}.md`.
+- `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`), `docs/verification.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
+- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, universal roles in `.harness/agents/{leader,spec_author,implementer,reviewer}.md`, and compatibility copies in `.claude/agents/{leader,spec_author,implementer,reviewer}.md`.
+
+Adapter options:
+
+- `--adapters all`: install built-in compatibility adapters.
+- `--adapters agents,claude,gemini`: install only selected adapters.
+- `--adapters none`: install no tool-specific adapter files.
+
+`HARNESS.md` and `.harness/ENTRYPOINT.md` are always the source of truth. Tool-specific files are adapters only.
 
 ## Safety
 
