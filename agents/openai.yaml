@@ -1,3 +1,0 @@
-display_name: Harness
-short_description: Evaluate project tasks and choose simple, TDD, or SDD workflow automatically.
-default_prompt: Use harness for this project task. If no repo or path is provided, ask for it; otherwise inspect first, select skills, then dry-run and apply only the needed universal workflow. Treat tool-specific files as adapters only.
