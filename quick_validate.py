@@ -82,7 +82,7 @@ def check_python(root: Path, errors: list[str]) -> None:
 
 
 def check_private_refs(root: Path, errors: list[str]) -> None:
-    ignored = {".git", "__pycache__"}
+    ignored = {".git", ".harness-test", ".idea", ".pytest_cache", ".vscode", "__pycache__", "node_modules"}
     for path in root.rglob("*"):
         if any(part in ignored for part in path.parts):
             continue

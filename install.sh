@@ -11,6 +11,24 @@ GEMINI_HOME="${GEMINI_HOME:-$HOME/.gemini}"
 OPENCODE_HOME="${OPENCODE_HOME:-$HOME/.config/opencode}"
 TARGETS_RAW="${HARNESS_TARGETS:-}"
 
+display_path() {
+  local path
+  path="$1"
+  if [ -n "${HOME:-}" ]; then
+    case "$path" in
+      "$HOME")
+        printf '%s' '$HOME'
+        return
+        ;;
+      "$HOME"/*)
+        printf '%s/%s' '$HOME' "${path#"$HOME"/}"
+        return
+        ;;
+    esac
+  fi
+  printf '%s' "$path"
+}
+
 usage() {
   cat <<'EOF'
 Install Harness runtime and optional LLM entrypoints.
@@ -207,13 +225,13 @@ install_codex() {
   mkdir -p "$CODEX_HOME/skills"
   rm -rf "$CODEX_HOME/skills/harness"
   cp -R "$RUNTIME_DIR" "$CODEX_HOME/skills/harness"
-  echo "Codex skill installed at $CODEX_HOME/skills/harness"
+  echo "Codex skill installed at $(display_path "$CODEX_HOME/skills/harness")"
 }
 
 install_claude() {
   mkdir -p "$CLAUDE_HOME/commands"
   cp "$RUNTIME_DIR/commands/harness.md" "$CLAUDE_HOME/commands/harness.md"
-  echo "Claude Code command installed at $CLAUDE_HOME/commands/harness.md"
+  echo "Claude Code command installed at $(display_path "$CLAUDE_HOME/commands/harness.md")"
 }
 
 install_gemini() {
@@ -233,7 +251,7 @@ apply, inspect, or use Harness in a project:
 7. Do not skip human checkpoints, TDD evidence, SDD approval, or the final audit verdict.
 <!-- END HARNESS_GLOBAL -->
 EOF
-  echo "Gemini global context updated at $GEMINI_HOME/GEMINI.md"
+  echo "Gemini global context updated at $(display_path "$GEMINI_HOME/GEMINI.md")"
 }
 
 install_opencode() {
@@ -253,28 +271,32 @@ apply, inspect, or use Harness in a project:
 7. Do not skip human checkpoints, TDD evidence, SDD approval, or the final audit verdict.
 <!-- END HARNESS_GLOBAL -->
 EOF
-  echo "OpenCode global instructions updated at $OPENCODE_HOME/AGENTS.md"
+  echo "OpenCode global instructions updated at $(display_path "$OPENCODE_HOME/AGENTS.md")"
 }
 
 print_manual_instructions() {
+  local runtime_display cli_display bin_display
+  runtime_display="$(display_path "$RUNTIME_DIR")"
+  cli_display="$(display_path "$BIN_DIR/harness")"
+  bin_display="$(display_path "$BIN_DIR")"
   cat <<EOF
 
 Manual Harness setup for any LLM
 ================================
 
 Harness runtime is installed at:
-  $RUNTIME_DIR
+  $runtime_display
 
 Harness CLI is installed at:
-  $BIN_DIR/harness
+  $cli_display
 
-If $BIN_DIR is in PATH, use:
+If $bin_display is in PATH, use:
   harness inspect --project <path|url|owner/repo> --task "<task>"
   harness run --project <path|url|owner/repo> --task "<task>" --dry-run
   harness run --project <path|url|owner/repo> --task "<task>"
 
 If it is not in PATH, use:
-  $BIN_DIR/harness inspect --project <path|url|owner/repo> --task "<task>"
+  $cli_display inspect --project <path|url|owner/repo> --task "<task>"
 
 Prompt to paste into any LLM:
   Use the Harness CLI for this project.
@@ -320,8 +342,8 @@ for target in $TARGETS; do
   esac
 done
 
-echo "Harness installed at $RUNTIME_DIR"
-echo "CLI installed at $BIN_DIR/harness"
+echo "Harness installed at $(display_path "$RUNTIME_DIR")"
+echo "CLI installed at $(display_path "$BIN_DIR/harness")"
 if [ -n "$ENTRYPOINT_TARGETS" ]; then
   echo "Installed LLM entrypoints: $ENTRYPOINT_TARGETS"
 else
@@ -330,4 +352,4 @@ fi
 if [ "$MANUAL_REQUESTED" -eq 1 ]; then
   echo "Manual setup instructions printed."
 fi
-echo "Add $BIN_DIR to PATH if needed."
+echo "Add $(display_path "$BIN_DIR") to PATH if needed."
