@@ -35,6 +35,6 @@ Execute in order:
 
 ## Extension Inputs
 
-Harness does not hardcode domain architecture rules. Load and apply selected skills, agents, docs, and rules when their triggers match the task/project context.
+Harness does not hardcode domain architecture rules. Load and apply selected skills, agents, docs, rules, and MCP contexts when their triggers match the task/project context.
 
 {{capability_sections}}

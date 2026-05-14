@@ -11,6 +11,7 @@
     "agents": ".harness/agents.json",
     "docs": ".harness/docs.json",
     "rules": ".harness/rules.json",
+    "mcps": ".harness/mcps.json",
     "memory": ".harness/memory.json",
     "adapters": ".harness/adapters.json"
   },

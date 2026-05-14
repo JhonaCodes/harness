@@ -24,6 +24,7 @@ class Skill:
     triggers: list[str]
     description: str = ""
     path: str = ""
+    context: str = ""
     kind: str = "skill"
 
 
@@ -38,4 +39,3 @@ class Decision:
     project_root: str
     repo: str | None
     commands: list[str]
-

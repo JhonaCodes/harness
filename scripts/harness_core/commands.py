@@ -30,7 +30,13 @@ class HarnessCommands:
 
     def registry_add(self, args: argparse.Namespace, kind: str) -> int:
         root = self.resolver(args).resolve_existing_root(args.project)
-        payload = ProjectRegistry(root, kind).add(args.name, args.triggers, args.path, args.description)
+        payload = ProjectRegistry(root, kind).add(
+            args.name,
+            args.triggers,
+            args.path,
+            args.description,
+            getattr(args, "context", ""),
+        )
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
@@ -64,4 +70,3 @@ class HarnessCommands:
         decision = self.decider.decide(root, repo, profile, args.task, args.workflow, Path(args.global_skills))
         print(json.dumps({"context": asdict(context), "decision": asdict(decision)}, indent=2, ensure_ascii=False))
         return 0
-

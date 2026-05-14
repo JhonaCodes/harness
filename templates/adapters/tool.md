@@ -10,9 +10,9 @@ Before answering, editing, or delegating:
 
 1. Read `HARNESS.md`.
 2. Read `.harness/ENTRYPOINT.md`.
-3. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/memory.json` when present.
+3. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/mcps.json`, and `.harness/memory.json` when present.
 4. Apply the workflow decided by the universal Harness runtime.
-5. Use selected project/global skills, agents, docs, and rules when their triggers match.
+5. Use selected project/global skills, agents, docs, rules, and MCP contexts when their triggers match.
 
 Default installed workflow: `{{workflow}}`.
 Reason: {{reason}}

@@ -128,6 +128,7 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/.harness/agents.json", result.stdout)
             self.assertIn("/.harness/docs.json", result.stdout)
             self.assertIn("/.harness/rules.json", result.stdout)
+            self.assertIn("/.harness/mcps.json", result.stdout)
             self.assertIn("/.harness/memory.json", result.stdout)
             self.assertIn("/docs/audit.md", result.stdout)
 
@@ -228,6 +229,72 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("Selected rules", content)
             self.assertIn("ui-audit-rules", content)
             self.assertIn("/tmp/ui-rules.md", content)
+
+    def test_mcp_add_list_select_and_reference_in_audit_doc(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            result = self.run_harness(
+                "mcp",
+                "add",
+                "--project",
+                str(project),
+                "--name",
+                "server-mcp",
+                "--triggers",
+                "widget,ui",
+                "--path",
+                "/tmp/server-mcp.md",
+                "--description",
+                "Architecture MCP context",
+                "--context",
+                "Use before UI architecture decisions.",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            result = self.run_harness("mcp", "list", "--project", str(project))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload[0]["name"], "server-mcp")
+            self.assertEqual(payload[0]["context"], "Use before UI architecture decisions.")
+
+            result = self.run_harness("inspect", "--project", str(project), "--task", "fix failing widget test")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            selected_mcps = payload["decision"]["selected_capabilities"]["mcp"]
+            self.assertEqual(selected_mcps[0]["name"], "server-mcp")
+            self.assertEqual(selected_mcps[0]["context"], "Use before UI architecture decisions.")
+
+            result = self.run_harness("run", "--project", str(project), "--task", "fix failing widget test", "--adapters", "none")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (project / "docs" / "audit.md").read_text(encoding="utf-8")
+            self.assertIn("Selected MCP contexts", content)
+            self.assertIn("server-mcp", content)
+            self.assertIn("Use before UI architecture decisions.", content)
+            self.assertIn("/tmp/server-mcp.md", content)
+
+    def test_existing_mcp_registry_is_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            registry = project / ".harness" / "mcps.json"
+            registry.parent.mkdir()
+            registry.write_text(
+                json.dumps(
+                    [
+                        {
+                            "name": "existing-mcp",
+                            "triggers": ["api"],
+                            "path": "/tmp/existing-mcp.md",
+                            "context": "Existing context",
+                        }
+                    ],
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            result = self.run_harness("run", "--project", str(project), "--task", "fix failing login test", "--adapters", "none")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(registry.read_text(encoding="utf-8"))
+            self.assertEqual(payload[0]["name"], "existing-mcp")
 
     def test_skill_add_and_list(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -342,6 +409,7 @@ class HarnessCliTests(unittest.TestCase):
             ".harness/agents.json",
             ".harness/docs.json",
             ".harness/rules.json",
+            ".harness/mcps.json",
             ".harness/memory.json",
             ".harness/agents/leader.md",
             ".harness/agents/spec_author.md",

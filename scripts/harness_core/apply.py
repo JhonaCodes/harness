@@ -19,7 +19,7 @@ class ManagedFileWriter:
             if current == content:
                 actions.append(f"unchanged {path}")
                 return
-            if path.name in {"skills.json", "agents.json", "docs.json", "rules.json", "memory.json"}:
+            if path.name in {"skills.json", "agents.json", "docs.json", "rules.json", "mcps.json", "memory.json"}:
                 actions.append(f"preserve registry {path}")
                 return
             if BEGIN_MARKER in current and END_MARKER in current and BEGIN_MARKER in content and END_MARKER in content:
@@ -102,4 +102,3 @@ class HarnessApplication:
             self.writer.write(root / rel, content, dry_run, actions, conflicts)
         self.reporter.write_report(root, decision, actions, conflicts, dry_run, adapters)
         return 1 if conflicts else 0
-

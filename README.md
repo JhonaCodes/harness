@@ -185,6 +185,7 @@ For `tdd`, Harness installs the minimum project runtime:
 - `.harness/agents.json`
 - `.harness/docs.json`
 - `.harness/rules.json`
+- `.harness/mcps.json`
 - `.harness/memory.json`
 - `docs/verification.md`
 - `docs/audit.md`
@@ -232,7 +233,9 @@ This distinction matters: installing Harness globally does not modify your proje
 
 ## Registries And Memory
 
-Harness can select user-defined skills, agents, docs, and rules by trigger.
+Harness can select user-defined skills, agents, docs, rules, and MCP contexts by trigger.
+
+MCP support in this version is a universal context registry. Harness records which MCP context/config reference an LLM should read and when to use it. It does not write tool-specific MCP server configuration files for Codex, Claude, Gemini, or OpenCode.
 
 Global registries:
 
@@ -241,6 +244,7 @@ Global registries:
 ~/.harness/agents.json
 ~/.harness/docs.json
 ~/.harness/rules.json
+~/.harness/mcps.json
 ```
 
 Project registries:
@@ -250,6 +254,7 @@ Project registries:
 .harness/agents.json
 .harness/docs.json
 .harness/rules.json
+.harness/mcps.json
 ```
 
 Example entry:
@@ -272,6 +277,7 @@ harness skill list --project api
 harness agent add --project api --name security-auditor --triggers security,auth --path /path/to/agent.md
 harness doc add --project api --name api-contract --triggers api,contract --path /path/to/openapi.md
 harness rule add --project api --name api-layering --triggers api,repository --path /path/to/rules.md
+harness mcp add --project api --name server-mcp --triggers architecture,blueprint --path /path/to/mcp-context.md --context "Use before implementation decisions that depend on project architecture."
 ```
 
 Manage project memory:
@@ -301,7 +307,7 @@ Runtime code is split by context under `scripts/harness_core/`:
 - `projects.py`: aliases, repo resolution, and profile detection.
 - `inspection.py`: repository inspection and workflow classification.
 - `decisioning.py`: workflow decision model.
-- `capabilities.py`: skills, agents, docs, rules, and memory registries.
+- `capabilities.py`: skills, agents, docs, rules, MCP contexts, and memory registries.
 - `rendering.py`: installed file rendering.
 - `apply.py`: managed file writes and apply reports.
 - `models.py`, `constants.py`, `io.py`: shared models, constants, and JSON persistence.

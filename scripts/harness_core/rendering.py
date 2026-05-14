@@ -85,7 +85,7 @@ run_step() {{
 }}
 
 echo "── Harness validation ({workflow}/{profile}) ─────────────"
-for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json .harness/skills.json .harness/agents.json .harness/docs.json .harness/rules.json docs/verification.md docs/audit.md progress/current.md; do
+for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json .harness/skills.json .harness/agents.json .harness/docs.json .harness/rules.json .harness/mcps.json docs/verification.md docs/audit.md progress/current.md; do
   if [ -f "$f" ]; then ok "Exists $f"; else fail "Missing $f"; EXIT_CODE=1; fi
 done
 {sdd_validation}
@@ -111,6 +111,8 @@ Reason: {decision.reason}
 
 The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific files are adapters only.
 
+Load selected skills, agents, docs, rules, and MCP contexts from `.harness/*` and `~/.harness/*` before decisions that match their triggers. MCP entries are context references, not tool-specific server installers.
+
 Use RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
 
 1. Write or identify a failing test for the behavior.
@@ -135,6 +137,8 @@ Workflow: `sdd`
 Reason: {decision.reason}
 
 The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific files are adapters only.
+
+Load selected skills, agents, docs, rules, and MCP contexts from `.harness/*` and `~/.harness/*` before decisions that match their triggers. MCP entries are context references, not tool-specific server installers.
 
 Use strict Spec Driven Development:
 
@@ -177,6 +181,7 @@ Every `done` feature must have reviewer approval and `progress/audit_<feature>.m
                 "agents": ".harness/agents.json",
                 "docs": ".harness/docs.json",
                 "rules": ".harness/rules.json",
+                "mcps": ".harness/mcps.json",
                 "memory": ".harness/memory.json",
                 "adapters": ".harness/adapters.json",
             },
@@ -244,6 +249,7 @@ Every `done` feature must have reviewer approval and `progress/audit_<feature>.m
         selected_agents = ", ".join(item["name"] for item in decision.selected_capabilities.get("agent", [])) or "none"
         selected_docs = ", ".join(item["name"] for item in decision.selected_capabilities.get("doc", [])) or "none"
         selected_rules = ", ".join(item["name"] for item in decision.selected_capabilities.get("rule", [])) or "none"
+        selected_mcps = ", ".join(item["name"] for item in decision.selected_capabilities.get("mcp", [])) or "none"
         return f"""# Harness Entrypoint
 
 {BEGIN_MARKER}
@@ -253,7 +259,7 @@ This is the neutral startup contract for any LLM working in this project.
 ## Startup
 
 1. Read `HARNESS.md`.
-2. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/memory.json` when present.
+2. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/mcps.json`, and `.harness/memory.json` when present.
 3. If available, inspect the task with:
    ```bash
    harness inspect --project . --task "<user task>"
@@ -262,7 +268,7 @@ This is the neutral startup contract for any LLM working in this project.
    - `simple`: direct work, minimal verification, no persistent state.
    - `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
    - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review -> audit.
-5. Use matching skills, agents, docs, and rules from `.harness/*` and `~/.harness/*`.
+5. Use matching skills, agents, docs, rules, and MCP contexts from `.harness/*` and `~/.harness/*`.
 6. Read durable project memory from `.harness/memory.json` and optional global memory if configured.
 
 Default installed workflow: `{workflow}`.
@@ -271,6 +277,7 @@ Selected skills: {skills}.
 Selected agents: {selected_agents}.
 Selected docs: {selected_docs}.
 Selected rules: {selected_rules}.
+Selected MCPs: {selected_mcps}.
 
 ## Hard Rules
 
@@ -296,9 +303,9 @@ Before answering, editing, or delegating:
 
 1. Read `HARNESS.md`.
 2. Read `.harness/ENTRYPOINT.md`.
-3. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/memory.json` when present.
+3. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/mcps.json`, and `.harness/memory.json` when present.
 4. Apply the workflow decided by the universal Harness runtime.
-5. Use selected project/global skills, agents, docs, and rules when their triggers match.
+5. Use selected project/global skills, agents, docs, rules, and MCP contexts when their triggers match.
 
 Default installed workflow: `{workflow}`.
 Reason: {decision.reason}
@@ -318,6 +325,7 @@ harness inspect --project . --task "<user task>"
         selected_rules = decision.selected_capabilities.get("rule", [])
         selected_agents = decision.selected_capabilities.get("agent", [])
         selected_skills = decision.selected_capabilities.get("skill", [])
+        selected_mcps = decision.selected_capabilities.get("mcp", [])
 
         def lines_for(title: str, items: list[dict[str, Any]]) -> str:
             if not items:
@@ -325,6 +333,8 @@ harness inspect --project . --task "<user task>"
             rows = [f"## Selected {title}\n"]
             for item in items:
                 detail = item.get("description") or item.get("path") or "No description"
+                if item.get("context"):
+                    detail = f"{detail} Context: {item['context']}"
                 path = f" Path: `{item['path']}`." if item.get("path") else ""
                 rows.append(f"- `{item['name']}`: {detail}.{path}")
             return "\n".join(rows) + "\n"
@@ -335,6 +345,7 @@ harness inspect --project . --task "<user task>"
                 lines_for("agents", selected_agents),
                 lines_for("docs", selected_docs),
                 lines_for("rules", selected_rules),
+                lines_for("MCP contexts", selected_mcps),
             ]
         )
         return f"""# Audit
@@ -374,7 +385,7 @@ Execute in order:
 
 ## Extension Inputs
 
-Harness does not hardcode domain architecture rules. Load and apply the selected skills, agents, docs, and rules below when their triggers match the task/project context.
+Harness does not hardcode domain architecture rules. Load and apply the selected skills, agents, docs, rules, and MCP contexts below when their triggers match the task/project context.
 
 {capability_sections}
 """
@@ -389,7 +400,7 @@ Harness does not hardcode domain architecture rules. Load and apply the selected
 - Prefer existing project patterns.
 - Keep changes scoped to the active task.
 - Replace obsolete flows instead of preserving outdated behavior by default.
-- Use selected skills, agents, docs, and rules from the harness decision when available.
+- Use selected skills, agents, docs, rules, and MCP contexts from the harness decision when available.
 """
         architecture = """# Architecture
 
@@ -579,6 +590,7 @@ or
             ".harness/agents.json": self.empty_capability_registry(),
             ".harness/docs.json": self.empty_capability_registry(),
             ".harness/rules.json": self.empty_capability_registry(),
+            ".harness/mcps.json": self.empty_capability_registry(),
             ".harness/memory.json": self.empty_memory(),
             "docs/verification.md": docs_map["docs/verification.md"],
             "docs/audit.md": docs_map["docs/audit.md"],
@@ -591,7 +603,7 @@ or
             files.update(
                 {
                     "feature_list.json": self.feature_list(root, decision.repo),
-                    "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, `reviewer.md`, and `auditor.md` exist.\n- [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, `docs/verification.md`, and `docs/audit.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Obsolete behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test or check.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n- [ ] The audit verdict exists in `progress/audit_<feature>.md` and is `GO` or accepted `GO-WITH-RISK`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
+                    "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/mcps.json` exist.\n- [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, `reviewer.md`, and `auditor.md` exist.\n- [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, `docs/verification.md`, and `docs/audit.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Obsolete behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test or check.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n- [ ] The audit verdict exists in `progress/audit_<feature>.md` and is `GO` or accepted `GO-WITH-RISK`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
                     "progress/history.md": "# Harness History\n\n",
                     "specs/.gitkeep": "",
                     ".harness/agents/leader.md": self.agent_file("leader"),

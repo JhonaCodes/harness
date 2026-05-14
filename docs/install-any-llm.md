@@ -156,6 +156,7 @@ No matter which LLM you use, after Harness is applied to a project the LLM must 
 - `.harness/config.json`
 - `.harness/workflow.json`
 - `.harness/skills.json`
+- `.harness/mcps.json`
 - `.harness/memory.json`
 
 Those files are the universal contract. Tool-specific files for Codex, Claude, Gemini, or OpenCode only help the tool start.

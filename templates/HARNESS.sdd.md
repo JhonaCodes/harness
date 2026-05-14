@@ -10,6 +10,8 @@ Reason: {{reason}}
 
 The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific files are adapters only.
 
+Load selected skills, agents, docs, rules, and MCP contexts from `.harness/*` and `~/.harness/*` before decisions that match their triggers. MCP entries are context references, not tool-specific server installers.
+
 Use strict Spec Driven Development:
 
 `pending -> spec_ready -> human approval -> in_progress -> implementer -> reviewer -> auditor -> done`

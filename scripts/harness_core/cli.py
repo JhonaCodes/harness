@@ -58,7 +58,7 @@ class HarnessCli:
         skill_list.add_argument("--project", required=True)
         skill_list.add_argument("--checkout-root", default="~/Projects")
 
-        def add_registry_command(command_name: str, singular: str, plural: str) -> None:
+        def add_registry_command(command_name: str, singular: str, plural: str, require_context: bool = False) -> None:
             registry = sub.add_parser(command_name, help=f"Manage project {singular} registry.")
             registry_sub = registry.add_subparsers(dest=f"{singular}_command", required=True)
             registry_add = registry_sub.add_parser("add", help=f"Add or replace a project {singular}.")
@@ -69,6 +69,7 @@ class HarnessCli:
             registry_add.add_argument("--triggers", required=True, help="Comma-separated trigger terms")
             registry_add.add_argument("--path", required=True)
             registry_add.add_argument("--description", default="")
+            registry_add.add_argument("--context", required=require_context, default="", help="Explicit context for when and why an LLM should use this entry")
             registry_list = registry_sub.add_parser("list", help=f"List project {plural}.")
             add_config(registry_list)
             registry_list.add_argument("--project", required=True)
@@ -77,6 +78,7 @@ class HarnessCli:
         add_registry_command("agent", "agent", "agents")
         add_registry_command("doc", "doc", "docs")
         add_registry_command("rule", "rule", "rules")
+        add_registry_command("mcp", "mcp", "mcps", require_context=True)
 
         memory = sub.add_parser("memory", help="Manage project harness memory.")
         memory_sub = memory.add_subparsers(dest="memory_command", required=True)
@@ -105,7 +107,7 @@ class HarnessCli:
                 return self.commands.registry_add(args, "skill")
             if args.skill_command == "list":
                 return self.commands.registry_list(args, "skill")
-        if args.command in {"agent", "doc", "rule"}:
+        if args.command in {"agent", "doc", "rule", "mcp"}:
             subcommand = getattr(args, f"{args.command}_command")
             if subcommand == "add":
                 return self.commands.registry_add(args, args.command)

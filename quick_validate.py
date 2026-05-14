@@ -38,6 +38,7 @@ REQUIRED_FILES = [
     "templates/HARNESS.tdd.md",
     "templates/HARNESS.sdd.md",
     "templates/.harness/ENTRYPOINT.md",
+    "templates/.harness/mcps.json",
     "templates/docs/audit.md",
     "workflows/simple.md",
     "workflows/tdd.md",

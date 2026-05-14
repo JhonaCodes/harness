@@ -46,6 +46,7 @@ class CapabilityRegistry:
                     triggers=[str(x).lower() for x in triggers],
                     description=str(item.get("description", "")),
                     path=str(item.get("path", "")),
+                    context=str(item.get("context", "")),
                     kind=kind,
                 )
             )
@@ -76,7 +77,9 @@ class ProjectRegistry:
     def parse_triggers(raw: str) -> list[str]:
         return [item.strip().lower() for item in raw.split(",") if item.strip()]
 
-    def add(self, name: str, triggers: str, path: str, description: str = "") -> dict[str, object]:
+    def add(self, name: str, triggers: str, path: str, description: str = "", context: str = "") -> dict[str, object]:
+        if self.kind == "mcp" and not context.strip():
+            raise SystemExit("MCP registry entries require --context")
         data = JsonStore.read_object(self.path, [])
         if isinstance(data, dict):
             data = data.get(f"{self.kind}s", [])
@@ -88,6 +91,8 @@ class ProjectRegistry:
             "description": description or "",
             "path": path,
         }
+        if context:
+            entry["context"] = context
         data = [item for item in data if not (isinstance(item, dict) and item.get("name") == name)]
         data.append(entry)
         JsonStore.write(self.path, data)
@@ -115,4 +120,3 @@ class MemoryStore:
 
     def list(self) -> object:
         return JsonStore.read_object(self.path, {"schema_version": 1, "entries": {}})
-
