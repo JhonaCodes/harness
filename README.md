@@ -25,8 +25,24 @@ For SDD work, harness installs an agent process:
 ./install.sh
 ```
 
-This installs a shared runtime under `~/.harness/harness` and, when possible, installs the Codex skill under `~/.codex/skills/harness`.
-It also installs a Claude command under `~/.claude/commands/harness.md` when Claude is available.
+This installs a shared runtime under `~/.harness/harness` and the `harness` CLI under `~/.local/bin/harness`.
+When run in an interactive terminal, the installer asks which LLM entrypoints to install. You can select multiple targets:
+
+- `codex`: Codex skill.
+- `claude`: Claude Code slash command.
+- `gemini`: Gemini global context.
+- `opencode`: OpenCode global instructions.
+- `none`: runtime and CLI only.
+
+For scripted installs, pass targets explicitly:
+
+```bash
+./install.sh --targets codex,claude,gemini,opencode
+./install.sh --targets none
+HARNESS_TARGETS=codex,opencode ./install.sh
+```
+
+The runtime is universal. LLM-specific files only teach each tool how to discover and invoke Harness.
 
 ## Use
 
@@ -50,7 +66,13 @@ From Claude Code after install, use the slash command:
 /harness instala harness en este proyecto
 ```
 
-For other LLMs, use the CLI directly or tell the model to read this repo's `README.md`; after harness is applied to a project, all LLMs should read `HARNESS.md` and `.harness/ENTRYPOINT.md`.
+From Gemini or OpenCode after installing those targets, tell the model:
+
+```text
+instala harness en este proyecto
+```
+
+If a tool does not support a global entrypoint, use the CLI directly or tell the model to read this repo's `README.md`; after harness is applied to a project, all LLMs should read `HARNESS.md` and `.harness/ENTRYPOINT.md`.
 
 Register local aliases without hardcoding private paths in the repo:
 

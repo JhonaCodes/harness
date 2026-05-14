@@ -24,6 +24,20 @@ Do not guess a random project.
 
 ## Commands
 
+Install the runtime from the repository:
+
+```bash
+./install.sh
+```
+
+Interactive installs ask which LLM entrypoints to install. Scripted installs can select multiple targets:
+
+```bash
+./install.sh --targets codex,claude,gemini,opencode
+./install.sh --targets none
+HARNESS_TARGETS=codex,opencode ./install.sh
+```
+
 Inspect first:
 
 ```bash
@@ -61,6 +75,12 @@ Claude Code uses the installed slash command:
 
 ```text
 /harness instala harness en este proyecto
+```
+
+Gemini and OpenCode use their installed global instructions. After install, ask:
+
+```text
+instala harness en este proyecto
 ```
 
 Register a user-local alias:

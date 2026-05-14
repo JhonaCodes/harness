@@ -1,5 +1,6 @@
 import json
 import importlib.util
+import os
 import subprocess
 import tempfile
 import unittest
@@ -19,6 +20,28 @@ class HarnessCliTests(unittest.TestCase):
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+        )
+
+    def run_install(self, home: Path, *args):
+        env = os.environ.copy()
+        env.update(
+            {
+                "HOME": str(home),
+                "HARNESS_HOME": str(home / ".harness"),
+                "BIN_DIR": str(home / ".local" / "bin"),
+                "CODEX_HOME": str(home / ".codex"),
+                "CLAUDE_HOME": str(home / ".claude"),
+                "GEMINI_HOME": str(home / ".gemini"),
+                "OPENCODE_HOME": str(home / ".config" / "opencode"),
+            }
+        )
+        return subprocess.run(
+            ["bash", str(ROOT / "install.sh"), *args],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
         )
 
     def test_simple_task_installs_no_files(self):
@@ -230,6 +253,43 @@ class HarnessCliTests(unittest.TestCase):
         self.assertIn("$ARGUMENTS", content)
         self.assertIn("harness inspect", content)
         self.assertIn("harness run", content)
+
+    def test_install_targets_all_installs_selected_llm_entrypoints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            result = self.run_install(home, "--targets", "codex,claude,gemini,opencode")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((home / ".local" / "bin" / "harness").exists())
+            self.assertTrue((home / ".harness" / "harness" / "scripts" / "harness.py").exists())
+            self.assertTrue((home / ".codex" / "skills" / "harness" / "SKILL.md").exists())
+            self.assertTrue((home / ".claude" / "commands" / "harness.md").exists())
+            self.assertIn("BEGIN HARNESS_GLOBAL", (home / ".gemini" / "GEMINI.md").read_text(encoding="utf-8"))
+            self.assertIn(
+                "BEGIN HARNESS_GLOBAL",
+                (home / ".config" / "opencode" / "AGENTS.md").read_text(encoding="utf-8"),
+            )
+
+    def test_install_targets_none_installs_only_runtime_and_cli(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            result = self.run_install(home, "--targets", "none")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((home / ".local" / "bin" / "harness").exists())
+            self.assertTrue((home / ".harness" / "harness" / "scripts" / "harness.py").exists())
+            self.assertFalse((home / ".codex" / "skills" / "harness").exists())
+            self.assertFalse((home / ".claude" / "commands" / "harness.md").exists())
+            self.assertFalse((home / ".gemini" / "GEMINI.md").exists())
+            self.assertFalse((home / ".config" / "opencode" / "AGENTS.md").exists())
+
+    def test_install_targets_accepts_numbers_and_empty_separators(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            result = self.run_install(home, "--targets", "1,,3")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((home / ".codex" / "skills" / "harness" / "SKILL.md").exists())
+            self.assertFalse((home / ".claude" / "commands" / "harness.md").exists())
+            self.assertIn("BEGIN HARNESS_GLOBAL", (home / ".gemini" / "GEMINI.md").read_text(encoding="utf-8"))
+            self.assertFalse((home / ".config" / "opencode" / "AGENTS.md").exists())
 
 
 if __name__ == "__main__":
