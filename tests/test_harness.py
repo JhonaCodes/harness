@@ -1,8 +1,11 @@
 import json
 import importlib.util
 import os
+import pty
+import select
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -43,6 +46,51 @@ class HarnessCliTests(unittest.TestCase):
             stderr=subprocess.PIPE,
             env=env,
         )
+
+    def run_install_in_pty(self, home: Path, input_text: str) -> tuple[int, str]:
+        env = os.environ.copy()
+        env.update(
+            {
+                "HOME": str(home),
+                "HARNESS_HOME": str(home / ".harness"),
+                "BIN_DIR": str(home / ".local" / "bin"),
+                "CODEX_HOME": str(home / ".codex"),
+                "CLAUDE_HOME": str(home / ".claude"),
+                "GEMINI_HOME": str(home / ".gemini"),
+                "OPENCODE_HOME": str(home / ".config" / "opencode"),
+            }
+        )
+        master, slave = pty.openpty()
+        proc = subprocess.Popen(
+            ["bash", str(ROOT / "install.sh")],
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+            env=env,
+        )
+        os.close(slave)
+        output = bytearray()
+        sent = False
+        deadline = time.time() + 10
+        try:
+            while time.time() < deadline:
+                ready, _, _ = select.select([master], [], [], 0.1)
+                if ready:
+                    chunk = os.read(master, 4096)
+                    if not chunk:
+                        break
+                    output.extend(chunk)
+                    if not sent and b"> " in output:
+                        os.write(master, input_text.encode("utf-8"))
+                        sent = True
+                if proc.poll() is not None:
+                    break
+            proc.wait(timeout=5)
+        finally:
+            os.close(master)
+            if proc.poll() is None:
+                proc.kill()
+        return proc.returncode or 0, output.decode("utf-8", errors="replace")
 
     def test_simple_task_installs_no_files(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -352,6 +400,17 @@ class HarnessCliTests(unittest.TestCase):
             self.assertFalse((home / ".claude" / "commands" / "harness.md").exists())
             self.assertIn("BEGIN HARNESS_GLOBAL", (home / ".gemini" / "GEMINI.md").read_text(encoding="utf-8"))
             self.assertFalse((home / ".config" / "opencode" / "AGENTS.md").exists())
+
+    def test_install_interactive_prompt_is_visible_and_accepts_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            returncode, output = self.run_install_in_pty(home, "5\n")
+            self.assertEqual(returncode, 0, output)
+            self.assertIn("Where should Harness install LLM entrypoints?", output)
+            self.assertIn("5) none", output)
+            self.assertIn("Installed LLM entrypoints: none", output)
+            self.assertTrue((home / ".local" / "bin" / "harness").exists())
+            self.assertFalse((home / ".codex" / "skills" / "harness").exists())
 
 
 if __name__ == "__main__":

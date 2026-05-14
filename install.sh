@@ -60,7 +60,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 prompt_targets() {
-  cat <<'EOF'
+  cat >&2 <<'EOF'
 Where should Harness install LLM entrypoints?
 
 Select one or more targets using numbers or names, separated by commas.
@@ -79,7 +79,7 @@ Examples:
 
 Default: all
 EOF
-  printf "> "
+  printf "> " >&2
   read -r answer
   printf '%s\n' "${answer:-all}"
 }
@@ -253,12 +253,15 @@ if [ -z "$TARGETS_RAW" ]; then
   if [ -t 0 ]; then
     TARGETS_RAW="$(prompt_targets)"
   else
+    echo "No interactive terminal detected; installing all LLM entrypoints." >&2
+    echo "Use --targets none or --targets codex,claude,gemini,opencode to choose explicitly." >&2
     TARGETS_RAW="all"
   fi
 fi
 
 TARGETS="$(normalize_targets "$TARGETS_RAW")"
 
+echo "Installing Harness runtime..."
 install_runtime
 
 for target in $TARGETS; do
