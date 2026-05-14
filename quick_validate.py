@@ -21,6 +21,7 @@ REQUIRED_FILES = [
     "SKILL.md",
     "README.md",
     "install.sh",
+    "commands/harness.md",
     "scripts/harness.py",
     "workflows/simple.md",
     "workflows/tdd.md",

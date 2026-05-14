@@ -51,6 +51,18 @@ python3 <this-skill>/scripts/harness.py run \
   --adapters all
 ```
 
+After repository install, Codex can invoke this skill by name:
+
+```text
+usa harness para instalar harness en este proyecto
+```
+
+Claude Code uses the installed slash command:
+
+```text
+/harness instala harness en este proyecto
+```
+
 Register a user-local alias:
 
 ```bash

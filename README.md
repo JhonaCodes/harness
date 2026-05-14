@@ -26,14 +26,31 @@ For SDD work, harness installs an agent process:
 ```
 
 This installs a shared runtime under `~/.harness/harness` and, when possible, installs the Codex skill under `~/.codex/skills/harness`.
+It also installs a Claude command under `~/.claude/commands/harness.md` when Claude is available.
 
 ## Use
+
+From any shell:
 
 ```bash
 harness inspect --project /path/to/project --task "fix failing login test"
 harness run --project /path/to/project --task "fix failing login test" --dry-run
 harness run --project /path/to/project --task "fix failing login test"
 ```
+
+From Codex after install, invoke the `harness` skill:
+
+```text
+usa harness para instalar harness en este proyecto
+```
+
+From Claude Code after install, use the slash command:
+
+```text
+/harness instala harness en este proyecto
+```
+
+For other LLMs, use the CLI directly or tell the model to read this repo's `README.md`; after harness is applied to a project, all LLMs should read `HARNESS.md` and `.harness/ENTRYPOINT.md`.
 
 Register local aliases without hardcoding private paths in the repo:
 

@@ -6,6 +6,7 @@ HARNESS_HOME="${HARNESS_HOME:-$HOME/.harness}"
 RUNTIME_DIR="$HARNESS_HOME/harness"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 
 mkdir -p "$HARNESS_HOME" "$BIN_DIR"
 rm -rf "$RUNTIME_DIR"
@@ -26,6 +27,11 @@ if [ -d "$CODEX_HOME" ]; then
   cp -R "$RUNTIME_DIR" "$CODEX_HOME/skills/harness"
 fi
 
+if [ -d "$CLAUDE_HOME" ]; then
+  mkdir -p "$CLAUDE_HOME/commands"
+  cp "$RUNTIME_DIR/commands/harness.md" "$CLAUDE_HOME/commands/harness.md"
+fi
+
 if [ ! -f "$HARNESS_HOME/projects.json" ]; then
   printf '{}\n' > "$HARNESS_HOME/projects.json"
 fi
@@ -36,4 +42,6 @@ fi
 
 echo "Harness installed at $RUNTIME_DIR"
 echo "CLI installed at $BIN_DIR/harness"
+if [ -d "$CODEX_HOME" ]; then echo "Codex skill installed at $CODEX_HOME/skills/harness"; fi
+if [ -d "$CLAUDE_HOME" ]; then echo "Claude command installed at $CLAUDE_HOME/commands/harness.md"; fi
 echo "Add $BIN_DIR to PATH if needed."

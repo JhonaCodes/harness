@@ -225,6 +225,12 @@ class HarnessCliTests(unittest.TestCase):
             module.check_private_refs(project, errors)
             self.assertTrue(errors)
 
+    def test_claude_command_template_exists(self):
+        content = (ROOT / "commands" / "harness.md").read_text(encoding="utf-8")
+        self.assertIn("$ARGUMENTS", content)
+        self.assertIn("harness inspect", content)
+        self.assertIn("harness run", content)
+
 
 if __name__ == "__main__":
     unittest.main()
