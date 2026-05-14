@@ -44,6 +44,8 @@ HARNESS_TARGETS=codex,opencode ./install.sh
 
 The runtime is universal. LLM-specific files only teach each tool how to discover and invoke Harness.
 
+Detailed guide: [Instalar Harness En Cualquier LLM](docs/install-any-llm.md).
+
 ## Use
 
 From any shell:
