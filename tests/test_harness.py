@@ -54,6 +54,9 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/.harness/workflow.json", result.stdout)
             self.assertIn("/.harness/adapters.json", result.stdout)
             self.assertIn("/.harness/skills.json", result.stdout)
+            self.assertIn("/.harness/agents.json", result.stdout)
+            self.assertIn("/.harness/docs.json", result.stdout)
+            self.assertIn("/.harness/rules.json", result.stdout)
             self.assertIn("/.harness/memory.json", result.stdout)
             self.assertIn("/docs/audit.md", result.stdout)
 
@@ -130,15 +133,30 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("progress/audit_<feature>.md", content)
             self.assertIn("GO-WITH-RISK", content)
 
-    def test_flutter_project_gets_strict_audit_checklist(self):
+    def test_registered_rule_is_referenced_in_audit_doc(self):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
-            (project / "pubspec.yaml").write_text("name: demo\n", encoding="utf-8")
+            result = self.run_harness(
+                "rule",
+                "add",
+                "--project",
+                str(project),
+                "--name",
+                "ui-audit-rules",
+                "--triggers",
+                "widget,ui",
+                "--path",
+                "/tmp/ui-rules.md",
+                "--description",
+                "Project UI audit rules",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
             result = self.run_harness("run", "--project", str(project), "--task", "fix failing widget test", "--adapters", "none")
             self.assertEqual(result.returncode, 0, result.stderr)
             content = (project / "docs" / "audit.md").read_text(encoding="utf-8")
-            self.assertIn("Flutter/Dart Strict Checklist", content)
-            self.assertIn("ReactiveNotifier", content)
+            self.assertIn("Selected rules", content)
+            self.assertIn("ui-audit-rules", content)
+            self.assertIn("/tmp/ui-rules.md", content)
 
     def test_skill_add_and_list(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,6 +179,28 @@ class HarnessCliTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(payload[0]["name"], "backend-api")
             self.assertEqual(payload[0]["triggers"], ["api", "endpoint", "auth"])
+
+    def test_agent_doc_and_rule_add_and_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            for command, name in [("agent", "security-auditor"), ("doc", "api-contract"), ("rule", "api-layering")]:
+                result = self.run_harness(
+                    command,
+                    "add",
+                    "--project",
+                    str(project),
+                    "--name",
+                    name,
+                    "--triggers",
+                    "api,auth",
+                    "--path",
+                    f"/tmp/{name}.md",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                result = self.run_harness(command, "list", "--project", str(project))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload[0]["name"], name)
 
     def test_memory_add_and_list(self):
         with tempfile.TemporaryDirectory() as tmp:

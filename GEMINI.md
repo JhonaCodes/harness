@@ -18,7 +18,7 @@ python3 scripts/harness.py run --project <project> --task "<task>" --adapters al
 ```
 
 Do not install TDD or SDD state when the decision is `simple`.
-Read selected skill paths from the decision output when present.
+Read selected skill, agent, doc, and rule paths from the decision output when present.
 
 When the target project already contains harness files, first read:
 
@@ -27,6 +27,9 @@ When the target project already contains harness files, first read:
 - `.harness/config.json`
 - `.harness/workflow.json`
 - `.harness/skills.json`
+- `.harness/agents.json`
+- `.harness/docs.json`
+- `.harness/rules.json`
 - `.harness/memory.json`
 - `docs/audit.md`
 

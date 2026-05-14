@@ -13,7 +13,7 @@ Use after meaningful implementation. This is a closure gate for TDD and SDD work
 
 Execute these roles in order:
 
-1. Context validator: confirm source of truth, selected skills, project docs, MCP/blueprints when relevant, and intended scope.
+1. Context validator: confirm source of truth, selected capabilities, project docs, MCP/blueprints when relevant, and intended scope.
 2. Business-rule validator: check permissions, workflow states, invariants, domain rules, and user-facing constraints.
 3. Code-quality auditor: review correctness, architecture, layering, maintainability, security, and regression risk.
 4. Test verifier: map changed behavior to tests/checks, identify missing coverage, and verify command evidence.
@@ -37,14 +37,13 @@ Execute these roles in order:
 6. Go/No-Go
 7. Residual risks
 
-## Flutter Strict Audit Signals
+## Extension Inputs
 
-When the project is Flutter/Dart or selected skills indicate Flutter/ReactiveNotifier, include:
+Harness does not hardcode project architecture, framework rules, or domain-specific audit rules.
 
-- architecture and module boundaries;
-- ReactiveNotifier usage when present;
-- widget extraction, hardcoded values, const usage, rebuild scope;
-- models, repositories, Result/error patterns;
-- tests, performance, security, and scoring.
+- Register skills for specialized execution guidance.
+- Register agents for role-specific behavior.
+- Register docs for source-of-truth references.
+- Register rules for architecture, domain, security, testing, or framework constraints.
 
-Do not require reading every `.dart` file unless the task explicitly asks for full audit/full analysis or the SDD feature is high risk.
+The audit must load and apply registered entries whose triggers match the task, project profile, or files touched. Exhaustive framework-specific audits should come from registered rules/docs/skills, not from the harness core.

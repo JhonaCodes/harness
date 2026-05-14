@@ -24,6 +24,7 @@ from typing import Any
 DEFAULT_CONFIG_DIR = Path("~/.harness").expanduser()
 DEFAULT_PROJECT_MAP = DEFAULT_CONFIG_DIR / "projects.json"
 DEFAULT_GLOBAL_SKILLS = DEFAULT_CONFIG_DIR / "skills.json"
+CAPABILITY_KINDS = {"skill", "agent", "doc", "rule"}
 BEGIN_MARKER = "<!-- BEGIN HARNESS_MANAGED -->"
 END_MARKER = "<!-- END HARNESS_MANAGED -->"
 DEFAULT_ADAPTERS: dict[str, dict[str, str]] = {
@@ -63,6 +64,7 @@ class Skill:
     triggers: list[str]
     description: str = ""
     path: str = ""
+    kind: str = "skill"
 
 
 @dataclass
@@ -71,6 +73,7 @@ class Decision:
     profile: str
     reason: str
     selected_skills: list[dict[str, Any]]
+    selected_capabilities: dict[str, list[dict[str, Any]]]
     will_install_files: bool
     project_root: str
     repo: str | None
@@ -235,32 +238,44 @@ def classify_workflow(task: str, context: RepoContext, forced: str) -> tuple[str
     return "simple", "No signal requires persistent TDD/SDD state."
 
 
-def load_skills(root: Path, global_skills_path: Path) -> list[Skill]:
+def capability_path(root: Path, kind: str) -> Path:
+    return root / ".harness" / f"{kind}s.json"
+
+
+def global_capability_path(global_skills_path: Path, kind: str) -> Path:
+    if kind == "skill":
+        return global_skills_path.expanduser()
+    return global_skills_path.expanduser().parent / f"{kind}s.json"
+
+
+def load_capabilities(root: Path, global_skills_path: Path, kind: str) -> list[Skill]:
     raw_items: list[Any] = []
-    for path in [global_skills_path.expanduser(), root / ".harness" / "skills.json"]:
+    plural = f"{kind}s"
+    for path in [global_capability_path(global_skills_path, kind), capability_path(root, kind)]:
         data = read_json_object(path, [])
         if isinstance(data, dict):
-            data = data.get("skills", [])
+            data = data.get(plural, [])
         if not isinstance(data, list):
-            raise SystemExit(f"Skills registry must be a list or {{\"skills\": [...]}}: {path}")
+            raise SystemExit(f"{kind.title()} registry must be a list or {{\"{plural}\": [...]}}: {path}")
         raw_items.extend(data)
 
-    skills: list[Skill] = []
+    capabilities: list[Skill] = []
     for item in raw_items:
         if not isinstance(item, dict) or "name" not in item:
             continue
         triggers = item.get("triggers", [])
         if isinstance(triggers, str):
             triggers = [triggers]
-        skills.append(
+        capabilities.append(
             Skill(
                 name=str(item["name"]),
                 triggers=[str(x).lower() for x in triggers],
                 description=str(item.get("description", "")),
                 path=str(item.get("path", "")),
+                kind=kind,
             )
         )
-    return skills
+    return capabilities
 
 
 def select_skills(task: str, context: RepoContext, skills: list[Skill]) -> list[Skill]:
@@ -270,6 +285,13 @@ def select_skills(task: str, context: RepoContext, skills: list[Skill]) -> list[
         if any(trigger and trigger in haystack for trigger in skill.triggers):
             selected.append(skill)
     return selected
+
+
+def select_capabilities(task: str, context: RepoContext, global_skills_path: Path) -> dict[str, list[Skill]]:
+    return {
+        kind: select_skills(task, context, load_capabilities(Path(context.root), global_skills_path, kind))
+        for kind in sorted(CAPABILITY_KINDS)
+    }
 
 
 def verification_commands(profile: str) -> list[str]:
@@ -302,7 +324,8 @@ def parse_adapters(raw: str) -> list[dict[str, str]]:
 def decide(root: Path, repo: str | None, profile: str, task: str, workflow: str, global_skills: Path) -> Decision:
     context = inspect_repo(root, repo, profile)
     selected_workflow, reason = classify_workflow(task, context, workflow)
-    skills = select_skills(task, context, load_skills(root, global_skills))
+    capabilities = select_capabilities(task, context, global_skills)
+    skills = capabilities["skill"]
     commands = [
         f"python3 scripts/harness.py run --project {json.dumps(str(root))} --task {json.dumps(task)} --workflow {selected_workflow} --dry-run",
     ]
@@ -313,6 +336,7 @@ def decide(root: Path, repo: str | None, profile: str, task: str, workflow: str,
         profile=profile,
         reason=reason,
         selected_skills=[asdict(skill) for skill in skills],
+        selected_capabilities={kind: [asdict(item) for item in items] for kind, items in capabilities.items()},
         will_install_files=selected_workflow != "simple",
         project_root=str(root),
         repo=repo,
@@ -369,7 +393,7 @@ run_step() {{
 }}
 
 echo "── Harness validation ({workflow}/{profile}) ─────────────"
-for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json docs/verification.md docs/audit.md progress/current.md; do
+for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json .harness/skills.json .harness/agents.json .harness/docs.json .harness/rules.json docs/verification.md docs/audit.md progress/current.md; do
   if [ -f "$f" ]; then ok "Exists $f"; else fail "Missing $f"; EXIT_CODE=1; fi
 done
 {sdd_validation}
@@ -460,6 +484,9 @@ def project_config(root: Path, workflow: str, decision: Decision) -> str:
             "entrypoint": ".harness/ENTRYPOINT.md",
             "workflow": ".harness/workflow.json",
             "skills": ".harness/skills.json",
+            "agents": ".harness/agents.json",
+            "docs": ".harness/docs.json",
+            "rules": ".harness/rules.json",
             "memory": ".harness/memory.json",
             "adapters": ".harness/adapters.json",
         },
@@ -485,6 +512,10 @@ def empty_skills() -> str:
     return "[]\n"
 
 
+def empty_capability_registry() -> str:
+    return "[]\n"
+
+
 def empty_memory() -> str:
     return json.dumps({"schema_version": 1, "entries": {}}, indent=2, ensure_ascii=False) + "\n"
 
@@ -496,6 +527,7 @@ def workflow_json(workflow: str, decision: Decision, adapters: list[dict[str, st
         "reason": decision.reason,
         "profile": decision.profile,
         "selected_skills": decision.selected_skills,
+        "selected_capabilities": decision.selected_capabilities,
         "adapters": adapters,
         "rules": {
             "simple_installs_no_files": workflow == "simple",
@@ -521,6 +553,9 @@ def adapters_json(adapters: list[dict[str, str]]) -> str:
 
 def universal_entrypoint(workflow: str, decision: Decision) -> str:
     skills = ", ".join(skill["name"] for skill in decision.selected_skills) or "none"
+    selected_agents = ", ".join(item["name"] for item in decision.selected_capabilities.get("agent", [])) or "none"
+    selected_docs = ", ".join(item["name"] for item in decision.selected_capabilities.get("doc", [])) or "none"
+    selected_rules = ", ".join(item["name"] for item in decision.selected_capabilities.get("rule", [])) or "none"
     return f"""# Harness Entrypoint
 
 {BEGIN_MARKER}
@@ -530,7 +565,7 @@ This is the neutral startup contract for any LLM working in this project.
 ## Startup
 
 1. Read `HARNESS.md`.
-2. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, and `.harness/memory.json` when present.
+2. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/memory.json` when present.
 3. If available, inspect the task with:
    ```bash
    harness inspect --project . --task "<user task>"
@@ -539,12 +574,15 @@ This is the neutral startup contract for any LLM working in this project.
    - `simple`: direct work, minimal verification, no persistent state.
    - `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
    - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review -> audit.
-5. Use matching skills from `.harness/skills.json` and `~/.harness/skills.json`.
+5. Use matching skills, agents, docs, and rules from `.harness/*` and `~/.harness/*`.
 6. Read durable project memory from `.harness/memory.json` and optional global memory if configured.
 
 Default installed workflow: `{workflow}`.
 Reason: {decision.reason}
 Selected skills: {skills}.
+Selected agents: {selected_agents}.
+Selected docs: {selected_docs}.
+Selected rules: {selected_rules}.
 
 ## Hard Rules
 
@@ -570,9 +608,9 @@ Before answering, editing, or delegating:
 
 1. Read `HARNESS.md`.
 2. Read `.harness/ENTRYPOINT.md`.
-3. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, and `.harness/memory.json` when present.
+3. Read `.harness/config.json`, `.harness/workflow.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/memory.json` when present.
 4. Apply the workflow decided by the universal Harness runtime.
-5. Use selected project/global skills when their triggers match.
+5. Use selected project/global skills, agents, docs, and rules when their triggers match.
 
 Default installed workflow: `{workflow}`.
 Reason: {decision.reason}
@@ -587,33 +625,31 @@ harness inspect --project . --task "<user task>"
 """
 
 
-def needs_flutter_audit(root: Path, profile: str, decision: Decision) -> bool:
-    if profile == "flutter" or (root / "pubspec.yaml").exists():
-        return True
-    files = discover_files(root, limit=120)
-    if any(path.endswith(".dart") for path in files):
-        return True
-    selected = json.dumps(decision.selected_skills, ensure_ascii=False).lower()
-    return any(term in selected for term in ["flutter", "dart", "reactive", "notifier"])
-
-
 def audit_doc(root: Path, profile: str, workflow: str, decision: Decision) -> str:
     mode = "strict" if workflow == "sdd" else "focused"
-    flutter_section = ""
-    if needs_flutter_audit(root, profile, decision):
-        flutter_section = """
-## Flutter/Dart Strict Checklist
+    selected_docs = decision.selected_capabilities.get("doc", [])
+    selected_rules = decision.selected_capabilities.get("rule", [])
+    selected_agents = decision.selected_capabilities.get("agent", [])
+    selected_skills = decision.selected_capabilities.get("skill", [])
 
-Apply this checklist when the changed surface touches Flutter/Dart:
+    def lines_for(title: str, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return f"## Selected {title}\n\nNone selected by trigger.\n"
+        rows = [f"## Selected {title}\n"]
+        for item in items:
+            detail = item.get("description") or item.get("path") or "No description"
+            path = f" Path: `{item['path']}`." if item.get("path") else ""
+            rows.append(f"- `{item['name']}`: {detail}.{path}")
+        return "\n".join(rows) + "\n"
 
-- Architecture and module boundaries.
-- ReactiveNotifier usage when present: constructors, self-init, builders, dependencies, and forbidden patterns.
-- Widgets: extraction opportunities, hardcoded values, const usage, rebuild scope, resource leaks.
-- Models and repositories: purity, serialization, Result/error handling, no UI imports in data layers.
-- Tests, performance, security, and scoring.
-
-Do not require reading every `.dart` file unless the task explicitly asks for full audit/full analysis or the SDD feature is high risk.
-"""
+    capability_sections = "\n".join(
+        [
+            lines_for("skills", selected_skills),
+            lines_for("agents", selected_agents),
+            lines_for("docs", selected_docs),
+            lines_for("rules", selected_rules),
+        ]
+    )
     return f"""# Audit
 
 Workflow: `{workflow}`
@@ -626,7 +662,7 @@ Use this audit after meaningful implementation and before closing TDD/SDD work.
 
 Execute in order:
 
-1. Context validator: verify source of truth, selected skills, project docs, relevant MCP/blueprints, and scope.
+1. Context validator: verify source of truth, selected capabilities, project docs, relevant MCP/blueprints, and scope.
 2. Business-rule validator: check permissions, workflow states, invariants, domain rules, and user-facing constraints.
 3. Code-quality auditor: check correctness, architecture, layering, maintainability, security, and regression risk.
 4. Test verifier: map changed behavior to tests/checks, verify commands run, and identify coverage gaps.
@@ -648,7 +684,12 @@ Execute in order:
 5. Confidence report
 6. Go/No-Go
 7. Residual risks
-{flutter_section}
+
+## Extension Inputs
+
+Harness does not hardcode domain architecture rules. Load and apply the selected skills, agents, docs, and rules below when their triggers match the task/project context.
+
+{capability_sections}
 """
 
 
@@ -662,7 +703,7 @@ def docs(root: Path, profile: str, workflow: str, decision: Decision) -> dict[st
 - Prefer existing project patterns.
 - Keep changes scoped to the active task.
 - Replace obsolete flows instead of preserving outdated behavior by default.
-- Use selected skills from the harness decision when available.
+- Use selected skills, agents, docs, and rules from the harness decision when available.
 """
     architecture = """# Architecture
 
@@ -851,6 +892,9 @@ def files_for(root: Path, workflow: str, decision: Decision, adapters: list[dict
         ".harness/workflow.json": workflow_json(workflow, decision, adapters),
         ".harness/adapters.json": adapters_json(adapters),
         ".harness/skills.json": empty_skills(),
+        ".harness/agents.json": empty_capability_registry(),
+        ".harness/docs.json": empty_capability_registry(),
+        ".harness/rules.json": empty_capability_registry(),
         ".harness/memory.json": empty_memory(),
         "docs/verification.md": docs_map["docs/verification.md"],
         "docs/audit.md": docs_map["docs/audit.md"],
@@ -881,6 +925,9 @@ def write_file(path: Path, content: str, dry_run: bool, actions: list[str], conf
         current = path.read_text(encoding="utf-8")
         if current == content:
             actions.append(f"unchanged {path}")
+            return
+        if path.name in {"skills.json", "agents.json", "docs.json", "rules.json", "memory.json"}:
+            actions.append(f"preserve registry {path}")
             return
         if BEGIN_MARKER in current and END_MARKER in current and BEGIN_MARKER in content and END_MARKER in content:
             before = current.split(BEGIN_MARKER)[0].rstrip()
@@ -946,6 +993,12 @@ def project_skills_path(root: Path) -> Path:
     return root / ".harness" / "skills.json"
 
 
+def project_registry_path(root: Path, kind: str) -> Path:
+    if kind not in CAPABILITY_KINDS:
+        raise SystemExit(f"Unknown registry kind: {kind}")
+    return capability_path(root, kind)
+
+
 def project_memory_path(root: Path) -> Path:
     return root / ".harness" / "memory.json"
 
@@ -954,14 +1007,14 @@ def parse_triggers(raw: str) -> list[str]:
     return [item.strip().lower() for item in raw.split(",") if item.strip()]
 
 
-def command_skill_add(args: argparse.Namespace) -> int:
+def command_registry_add(args: argparse.Namespace, kind: str) -> int:
     root = resolve_project_root(args.project, args.checkout_root, args.project_map)
-    path = project_skills_path(root)
+    path = project_registry_path(root, kind)
     data = read_json_object(path, [])
     if isinstance(data, dict):
-        data = data.get("skills", [])
+        data = data.get(f"{kind}s", [])
     if not isinstance(data, list):
-        raise SystemExit(f"Skills registry must be a list: {path}")
+        raise SystemExit(f"{kind.title()} registry must be a list: {path}")
     entry = {
         "name": args.name,
         "triggers": parse_triggers(args.triggers),
@@ -971,15 +1024,23 @@ def command_skill_add(args: argparse.Namespace) -> int:
     data = [item for item in data if not (isinstance(item, dict) and item.get("name") == args.name)]
     data.append(entry)
     write_json(path, data)
-    print(json.dumps({"project": str(root), "skill": entry}, indent=2, ensure_ascii=False))
+    print(json.dumps({"project": str(root), kind: entry}, indent=2, ensure_ascii=False))
     return 0
+
+
+def command_registry_list(args: argparse.Namespace, kind: str) -> int:
+    root = resolve_project_root(args.project, args.checkout_root, args.project_map)
+    data = read_json_object(project_registry_path(root, kind), [])
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+    return 0
+
+
+def command_skill_add(args: argparse.Namespace) -> int:
+    return command_registry_add(args, "skill")
 
 
 def command_skill_list(args: argparse.Namespace) -> int:
-    root = resolve_project_root(args.project, args.checkout_root, args.project_map)
-    data = read_json_object(project_skills_path(root), [])
-    print(json.dumps(data, indent=2, ensure_ascii=False))
-    return 0
+    return command_registry_list(args, "skill")
 
 
 def command_memory_add(args: argparse.Namespace) -> int:
@@ -1067,6 +1128,26 @@ def build_parser() -> argparse.ArgumentParser:
     skill_list.add_argument("--project", required=True)
     skill_list.add_argument("--checkout-root", default="~/Projects")
 
+    def add_registry_command(command_name: str, singular: str, plural: str) -> None:
+        registry = sub.add_parser(command_name, help=f"Manage project {singular} registry.")
+        registry_sub = registry.add_subparsers(dest=f"{singular}_command", required=True)
+        registry_add = registry_sub.add_parser("add", help=f"Add or replace a project {singular}.")
+        add_config(registry_add)
+        registry_add.add_argument("--project", required=True)
+        registry_add.add_argument("--checkout-root", default="~/Projects")
+        registry_add.add_argument("--name", required=True)
+        registry_add.add_argument("--triggers", required=True, help="Comma-separated trigger terms")
+        registry_add.add_argument("--path", required=True)
+        registry_add.add_argument("--description", default="")
+        registry_list = registry_sub.add_parser("list", help=f"List project {plural}.")
+        add_config(registry_list)
+        registry_list.add_argument("--project", required=True)
+        registry_list.add_argument("--checkout-root", default="~/Projects")
+
+    add_registry_command("agent", "agent", "agents")
+    add_registry_command("doc", "doc", "docs")
+    add_registry_command("rule", "rule", "rules")
+
     memory = sub.add_parser("memory", help="Manage project harness memory.")
     memory_sub = memory.add_subparsers(dest="memory_command", required=True)
     memory_add = memory_sub.add_parser("add", help="Add or replace a memory entry.")
@@ -1098,6 +1179,12 @@ def main() -> int:
             return command_skill_add(args)
         if args.skill_command == "list":
             return command_skill_list(args)
+    if args.command in {"agent", "doc", "rule"}:
+        subcommand = getattr(args, f"{args.command}_command")
+        if subcommand == "add":
+            return command_registry_add(args, args.command)
+        if subcommand == "list":
+            return command_registry_list(args, args.command)
     if args.command == "memory":
         if args.memory_command == "add":
             return command_memory_add(args)

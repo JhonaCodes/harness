@@ -5,7 +5,7 @@ description: Universal runtime that evaluates a project task, selects relevant s
 
 # Harness
 
-Use this skill as the entrypoint for project work. The harness evaluates the project and task, selects relevant skills/capabilities, decides `simple`, `tdd`, or `sdd`, and installs only the minimum files needed.
+Use this skill as the entrypoint for project work. The harness evaluates the project and task, selects relevant skills/agents/docs/rules, decides `simple`, `tdd`, or `sdd`, and installs only the minimum files needed.
 
 ## Decision Rule
 
@@ -60,7 +60,7 @@ python3 <this-skill>/scripts/harness.py register --alias api --path /path/to/pro
 ## What Gets Installed
 
 - `simple`: no files; writes only a dry-run/report message when requested.
-- `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`), `docs/verification.md`, `docs/audit.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
+- `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/memory.json`), `docs/verification.md`, `docs/audit.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
 - `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, and universal roles in `.harness/agents/{leader,spec_author,implementer,reviewer,auditor}.md`.
 
 Adapter options:
@@ -81,12 +81,12 @@ Adapter options:
 - SDD remains strict: `pending -> spec_ready -> human approval -> in_progress -> review -> audit -> done`.
 - SDD `done` requires reviewer approval plus audit `GO` or accepted `GO-WITH-RISK`.
 
-## Skills Registry
+## Registries
 
-Harness reads optional skill registries from:
+Harness reads optional registries from:
 
-- `~/.harness/skills.json`
-- `<project>/.harness/skills.json`
+- `~/.harness/{skills,agents,docs,rules}.json`
+- `<project>/.harness/{skills,agents,docs,rules}.json`
 
 Each entry:
 
@@ -104,8 +104,11 @@ Use commands instead of editing JSON manually:
 ```bash
 harness skill add --project <project> --name backend-api --triggers api,endpoint,auth --path /path/to/SKILL.md
 harness skill list --project <project>
+harness agent add --project <project> --name security-auditor --triggers security,auth --path /path/to/agent.md
+harness doc add --project <project> --name api-contract --triggers api,contract --path /path/to/doc.md
+harness rule add --project <project> --name api-layering --triggers api,repository --path /path/to/rules.md
 harness memory add --project <project> --key rule --value "project-specific note"
 harness memory list --project <project>
 ```
 
-Register specialized audit skills with triggers such as `audit`, `flutter`, `security`, or `backend`; harness selects them by task text, profile, and file context.
+Do not hardcode framework architecture rules in harness. Register specialized audit, framework, security, product, or architecture rules/docs/agents with triggers; harness references them when they match task text, profile, and file context.

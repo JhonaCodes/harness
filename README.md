@@ -4,7 +4,7 @@ Universal Harness runtime for any LLM that needs to decide how much process a pr
 
 `HARNESS.md` and `.harness/ENTRYPOINT.md` are the source of truth inside a target project. Tool-specific files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are optional adapters that point back to that universal contract.
 
-Harness evaluates the project and task, selects configured skills, then chooses:
+Harness evaluates the project and task, selects configured skills/agents/docs/rules, then chooses:
 
 - `simple`: no persistent files, direct work.
 - `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
@@ -62,16 +62,16 @@ When TDD or SDD is selected, harness installs the universal runtime in the targe
 
 - `HARNESS.md` as the runtime contract.
 - `.harness/ENTRYPOINT.md` as the neutral startup instructions.
-- `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`.
+- `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/memory.json`.
 - `.harness/agents/*` for universal SDD role definitions when SDD is selected.
 - `docs/audit.md` for the mandatory TDD/SDD closure gate.
 - Optional adapter files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`, depending on `--adapters`.
 
 When `simple` is selected, harness installs nothing.
 
-## Skills
+## Registries
 
-Global skills live in `~/.harness/skills.json`; project skills live in `.harness/skills.json`.
+Global registries live in `~/.harness/{skills,agents,docs,rules}.json`; project registries live in `.harness/{skills,agents,docs,rules}.json`.
 
 ```json
 [
@@ -84,10 +84,9 @@ Global skills live in `~/.harness/skills.json`; project skills live in `.harness
 ]
 ```
 
-Harness selects skills by task text, project profile, and file context.
-Register specialized audit skills the same way; matching triggers make harness tell the agent which audit rules to load.
+Harness selects entries by task text, project profile, and file context. The core does not hardcode framework architecture rules; register project-specific rules/docs/agents/skills and let triggers activate them.
 
-Manage project skills without editing JSON manually:
+Manage project registries without editing JSON manually:
 
 ```bash
 harness skill add --project api \
@@ -96,6 +95,10 @@ harness skill add --project api \
   --path /path/to/SKILL.md
 
 harness skill list --project api
+
+harness rule add --project api --name api-layering --triggers api,repository,service --path /path/to/rules.md
+harness doc add --project api --name api-contract --triggers contract,endpoint --path /path/to/openapi.md
+harness agent add --project api --name security-auditor --triggers security,auth --path /path/to/agent.md
 ```
 
 Manage project memory:
