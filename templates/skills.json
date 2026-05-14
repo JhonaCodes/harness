@@ -1,0 +1,8 @@
+[
+  {
+    "name": "example-backend-api",
+    "triggers": ["api", "endpoint", "auth", "database"],
+    "description": "Example backend API skill entry.",
+    "path": "/absolute/path/to/SKILL.md"
+  }
+]
