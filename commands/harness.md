@@ -10,10 +10,10 @@ $ARGUMENTS
 
 Use this command when the user says things like:
 
-- "instala harness en este proyecto"
-- "aplica harness aqui"
-- "prepara este repo con harness"
-- "usa harness para esta tarea: ..."
+- "install harness in this project"
+- "apply harness here"
+- "prepare this repo with harness"
+- "use harness for this task: ..."
 
 ## Protocol
 

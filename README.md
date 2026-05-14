@@ -88,25 +88,25 @@ After installing the target for your tool, open a project and ask the LLM to app
 Codex:
 
 ```text
-usa harness para instalar harness en este proyecto
+use harness to install harness in this project
 ```
 
 Claude Code:
 
 ```text
-/harness instala harness en este proyecto
+/harness install harness in this project
 ```
 
 Gemini:
 
 ```text
-instala harness en este proyecto
+install harness in this project
 ```
 
 OpenCode:
 
 ```text
-instala harness en este proyecto
+install harness in this project
 ```
 
 Any other LLM:

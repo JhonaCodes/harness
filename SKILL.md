@@ -18,7 +18,7 @@ Use this skill as the entrypoint for project work. The harness evaluates the pro
 
 If the user does not provide a GitHub URL, repo name, local path, or known alias, ask for one concise input:
 
-> Enviame el URL del repo, `owner/name`, o la ruta local del proyecto donde quieres aplicar el harness.
+> Send the repo URL, `owner/name`, or local project path where Harness should be applied.
 
 Do not guess a random project.
 
@@ -68,19 +68,19 @@ python3 <this-skill>/scripts/harness.py run \
 After repository install, Codex can invoke this skill by name:
 
 ```text
-usa harness para instalar harness en este proyecto
+use harness to install harness in this project
 ```
 
 Claude Code uses the installed slash command:
 
 ```text
-/harness instala harness en este proyecto
+/harness install harness in this project
 ```
 
 Gemini and OpenCode use their installed global instructions. After install, ask:
 
 ```text
-instala harness en este proyecto
+install harness in this project
 ```
 
 Register a user-local alias:

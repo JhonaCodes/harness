@@ -1,21 +1,21 @@
-# Instalar Harness En Cualquier LLM
+# Install Harness In Any LLM
 
-Harness tiene dos niveles de instalacion:
+Harness has two installation layers:
 
-1. Runtime universal: instala el CLI `harness` y la copia local del runtime.
-2. Entrypoints por herramienta: instala una pequena instruccion para que cada LLM sepa como invocar Harness.
+1. Universal runtime: installs the `harness` CLI and a local runtime copy.
+2. Tool entrypoints: installs a small instruction or command so each LLM tool knows how to invoke Harness.
 
-El runtime universal siempre se instala. Los entrypoints son opcionales y puedes seleccionar varios.
+The universal runtime is always installed. Tool entrypoints are optional, and you can select multiple targets.
 
-## Instalacion Interactiva
+## Interactive Install
 
-Desde el repo `harness`:
+From the `harness` repository:
 
 ```bash
 ./install.sh
 ```
 
-El instalador pregunta:
+The installer asks:
 
 ```text
 Where should Harness install LLM entrypoints?
@@ -27,7 +27,7 @@ Where should Harness install LLM entrypoints?
   5) none       Runtime and CLI only
 ```
 
-Puedes responder con numeros o nombres:
+You can answer with numbers or names:
 
 ```text
 1,2,4
@@ -36,9 +36,9 @@ all
 none
 ```
 
-## Instalacion No Interactiva
+## Non-Interactive Install
 
-Para scripts, CI o instalacion reproducible:
+For scripts, CI, or reproducible installs:
 
 ```bash
 ./install.sh --targets codex,claude,gemini,opencode
@@ -47,97 +47,97 @@ Para scripts, CI o instalacion reproducible:
 HARNESS_TARGETS=codex,claude ./install.sh
 ```
 
-`none` instala solo el runtime y el CLI. Es util si el LLM no tiene mecanismo global de instrucciones o si quieres invocar Harness manualmente.
+`none` installs only the runtime and CLI. Use it when a tool has no global instruction mechanism or when you want to invoke Harness manually.
 
-## Que Instala Cada Target
+## What Each Target Installs
 
-- `codex`: instala el skill `harness` en el directorio de skills de Codex.
-- `claude`: instala el comando `/harness` para Claude Code.
-- `gemini`: agrega una seccion gestionada de Harness al contexto global de Gemini.
-- `opencode`: agrega una seccion gestionada de Harness a las instrucciones globales de OpenCode.
-- `none`: no instala entrypoints de LLM.
+- `codex`: installs the `harness` skill in the Codex skills directory.
+- `claude`: installs the `/harness` command for Claude Code.
+- `gemini`: adds a managed Harness section to Gemini global context.
+- `opencode`: adds a managed Harness section to OpenCode global instructions.
+- `none`: installs no LLM entrypoints.
 
-Los archivos instalados por herramienta solo apuntan al runtime universal. La fuente de verdad sigue siendo `HARNESS.md` y `.harness/ENTRYPOINT.md` dentro de cada proyecto preparado.
+Tool-specific files only point back to the universal runtime. The source of truth remains `HARNESS.md` and `.harness/ENTRYPOINT.md` inside each prepared project.
 
-## Como Invocarlo Desde Cada LLM
+## Invoke Harness From Each LLM
 
 Codex:
 
 ```text
-usa harness para instalar harness en este proyecto
+use harness to install harness in this project
 ```
 
 Claude Code:
 
 ```text
-/harness instala harness en este proyecto
+/harness install harness in this project
 ```
 
 Gemini:
 
 ```text
-instala harness en este proyecto
+install harness in this project
 ```
 
 OpenCode:
 
 ```text
-instala harness en este proyecto
+install harness in this project
 ```
 
-Cualquier otro LLM:
+Any other LLM:
 
 ```text
-Lee el README del repo harness y usa el CLI `harness`.
-Primero ejecuta:
-harness inspect --project <ruta|url|owner/repo> --task "<tarea>"
-Luego, si corresponde preparar el proyecto:
-harness run --project <ruta|url|owner/repo> --task "<tarea>"
+Read the harness repository README and use the `harness` CLI.
+First run:
+harness inspect --project <path|url|owner/repo> --task "<task>"
+Then, if the project should be prepared:
+harness run --project <path|url|owner/repo> --task "<task>"
 ```
 
-## Flujo Recomendado
+## Recommended Flow
 
-1. Instala Harness una vez en tu maquina:
+1. Install Harness once on your machine:
 
    ```bash
    ./install.sh
    ```
 
-2. Selecciona los LLMs que usas.
+2. Select the LLM tools you use.
 
-3. Abre cualquier proyecto en tu LLM.
+3. Open any project in your LLM tool.
 
-4. Pide:
+4. Ask:
 
    ```text
-   instala harness en este proyecto
+   install harness in this project
    ```
 
-5. Harness inspecciona la tarea y decide automaticamente:
+5. Harness inspects the task and automatically decides:
 
-   - `simple`: no instala nada en el proyecto.
-   - `tdd`: instala runtime minimo, verificacion y auditoria.
-   - `sdd`: instala runtime completo, specs, backlog, roles y auditoria.
+   - `simple`: installs nothing in the project.
+   - `tdd`: installs minimum runtime, verification, and audit files.
+   - `sdd`: installs full runtime, specs, backlog, roles, and audit files.
 
-## Si El LLM No Detecta Harness
+## If The LLM Does Not Detect Harness
 
-Usa el CLI directamente:
-
-```bash
-harness inspect --project /path/to/project --task "describe la tarea"
-harness run --project /path/to/project --task "describe la tarea" --dry-run
-harness run --project /path/to/project --task "describe la tarea"
-```
-
-Si el comando `harness` no aparece en PATH, usa:
+Use the CLI directly:
 
 ```bash
-$HOME/.local/bin/harness inspect --project /path/to/project --task "describe la tarea"
+harness inspect --project /path/to/project --task "describe the task"
+harness run --project /path/to/project --task "describe the task" --dry-run
+harness run --project /path/to/project --task "describe the task"
 ```
 
-## Regla Importante
+If `harness` is not in `PATH`, use:
 
-No importa que LLM uses. Despues de aplicar Harness a un proyecto, el LLM debe leer:
+```bash
+$HOME/.local/bin/harness inspect --project /path/to/project --task "describe the task"
+```
+
+## Important Rule
+
+No matter which LLM you use, after Harness is applied to a project the LLM must read:
 
 - `HARNESS.md`
 - `.harness/ENTRYPOINT.md`
@@ -146,4 +146,4 @@ No importa que LLM uses. Despues de aplicar Harness a un proyecto, el LLM debe l
 - `.harness/skills.json`
 - `.harness/memory.json`
 
-Esos archivos son el contrato universal. Los archivos especificos de Codex, Claude, Gemini u OpenCode solo ayudan a arrancar.
+Those files are the universal contract. Tool-specific files for Codex, Claude, Gemini, or OpenCode only help the tool start.
