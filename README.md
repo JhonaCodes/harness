@@ -2,49 +2,281 @@
 
 Universal Harness runtime for any LLM that needs to decide how much process a project task requires.
 
-`HARNESS.md` and `.harness/ENTRYPOINT.md` are the source of truth inside a target project. Tool-specific files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are optional adapters that point back to that universal contract.
+Harness inspects a project and a task, selects configured skills/agents/docs/rules, then chooses the smallest useful workflow:
 
-Harness evaluates the project and task, selects configured skills/agents/docs/rules, then chooses:
-
-- `simple`: no persistent files, direct work.
-- `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
+- `simple`: direct work, no persistent files.
+- `tdd`: RED -> human checkpoint when behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
 - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review -> audit.
 
-For SDD work, harness installs an agent process:
-
-- leader coordinates and does not implement application code;
-- spec_author writes requirements/design/tasks and stops for approval;
-- implementer handles exactly one approved feature and writes tests;
-- reviewer approves or rejects without editing code;
-- auditor validates context, business rules, code quality, tests, confidence, and go/no-go;
-- subagents write outputs to `progress/` and return only file references.
+`HARNESS.md` and `.harness/ENTRYPOINT.md` are the source of truth inside a prepared project. Tool-specific files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are only adapters that point back to that universal contract.
 
 ## Install
+
+Install Harness once on your machine:
 
 ```bash
 ./install.sh
 ```
 
-This installs a shared runtime under `~/.harness/harness` and the `harness` CLI under `~/.local/bin/harness`.
-When run in an interactive terminal, the installer asks which LLM entrypoints to install. You can select multiple targets:
+The installer always installs:
 
-- `codex`: Codex skill.
-- `claude`: Claude Code slash command.
-- `gemini`: Gemini global context.
-- `opencode`: OpenCode global instructions.
-- `none`: runtime and CLI only.
+- global runtime: `~/.harness/harness`
+- global CLI: `~/.local/bin/harness`
 
-For scripted installs, pass targets explicitly:
+When run in an interactive terminal, it asks which LLM entrypoints to install:
+
+```text
+Where should Harness install LLM entrypoints?
+
+  1) codex      Codex skill
+  2) claude     Claude Code slash command
+  3) gemini     Gemini global context
+  4) opencode   OpenCode global instructions
+  5) none       Runtime and CLI only
+```
+
+You can answer with numbers or names:
+
+```text
+1,2,4
+codex,claude,opencode
+all
+none
+```
+
+Non-interactive installs:
 
 ```bash
-./install.sh --targets codex,claude,gemini,opencode
+./install.sh --targets all
+./install.sh --targets codex,claude
+./install.sh --targets codex,opencode
 ./install.sh --targets none
 HARNESS_TARGETS=codex,opencode ./install.sh
 ```
 
-The runtime is universal. LLM-specific files only teach each tool how to discover and invoke Harness.
+If `harness` is not found after install, add `~/.local/bin` to your `PATH` or call it directly:
 
-Detailed guide: [Instalar Harness En Cualquier LLM](docs/install-any-llm.md).
+```bash
+$HOME/.local/bin/harness --help
+```
+
+Extended install guide: [Install Harness In Any LLM](docs/install-any-llm.md).
+
+## Install Targets
+
+Targets install discovery entrypoints for LLM tools. They do not change the universal runtime.
+
+| Target | What it installs | How you use it |
+| --- | --- | --- |
+| `codex` | Global Codex skill at `$CODEX_HOME/skills/harness` | Ask Codex to use `harness` |
+| `claude` | Claude Code command at `$CLAUDE_HOME/commands/harness.md` | Run `/harness ...` |
+| `gemini` | Managed Harness section in `$GEMINI_HOME/GEMINI.md` | Ask Gemini to install/apply Harness |
+| `opencode` | Managed Harness section in `$OPENCODE_HOME/AGENTS.md` | Ask OpenCode to install/apply Harness |
+| `none` | No LLM entrypoint | Use the CLI directly |
+
+Default paths are based on your home directory:
+
+- `CODEX_HOME`: defaults to `~/.codex`
+- `CLAUDE_HOME`: defaults to `~/.claude`
+- `GEMINI_HOME`: defaults to `~/.gemini`
+- `OPENCODE_HOME`: defaults to `~/.config/opencode`
+
+## Use From An LLM
+
+After installing the target for your tool, open a project and ask the LLM to apply Harness.
+
+Codex:
+
+```text
+usa harness para instalar harness en este proyecto
+```
+
+Claude Code:
+
+```text
+/harness instala harness en este proyecto
+```
+
+Gemini:
+
+```text
+instala harness en este proyecto
+```
+
+OpenCode:
+
+```text
+instala harness en este proyecto
+```
+
+Any other LLM:
+
+```text
+Use the Harness CLI.
+First run:
+harness inspect --project <path|url|owner/repo> --task "<task>"
+
+Then, if Harness should prepare the project, run:
+harness run --project <path|url|owner/repo> --task "<task>"
+
+After Harness is applied, read HARNESS.md and .harness/ENTRYPOINT.md.
+```
+
+If the LLM does not detect Harness automatically, use the CLI directly from a terminal.
+
+## Use From CLI
+
+Inspect a project without writing files:
+
+```bash
+harness inspect --project /path/to/project --task "fix failing login test"
+```
+
+Dry-run the selected workflow:
+
+```bash
+harness run --project /path/to/project --task "fix failing login test" --dry-run
+```
+
+Apply the selected workflow:
+
+```bash
+harness run --project /path/to/project --task "fix failing login test"
+```
+
+Use a GitHub repository:
+
+```bash
+harness run --project owner/repo --task "triage issues and set up SDD"
+```
+
+Register a local alias:
+
+```bash
+harness register --alias api --path /path/to/project
+harness run --project api --task "review current issues and implement them"
+```
+
+## Apply Harness To A Project
+
+`harness run` decides whether the task needs `simple`, `tdd`, or `sdd`.
+
+For `simple`, Harness writes no project files.
+
+For `tdd`, Harness installs the minimum project runtime:
+
+- `HARNESS.md`
+- `.harness/ENTRYPOINT.md`
+- `.harness/config.json`
+- `.harness/workflow.json`
+- `.harness/skills.json`
+- `.harness/agents.json`
+- `.harness/docs.json`
+- `.harness/rules.json`
+- `.harness/memory.json`
+- `docs/verification.md`
+- `docs/audit.md`
+- `init.sh`
+- `progress/current.md`
+
+For `sdd`, Harness installs the TDD runtime plus:
+
+- `feature_list.json`
+- `CHECKPOINTS.md`
+- `docs/specs.md`
+- `docs/architecture.md`
+- `docs/conventions.md`
+- `progress/history.md`
+- `specs/.gitkeep`
+- `.harness/agents/*`
+
+Project adapters can be selected independently:
+
+```bash
+harness run --project /path/to/project --task "fix failing login test" --adapters all
+harness run --project /path/to/project --task "fix failing login test" --adapters agents,claude,gemini
+harness run --project /path/to/project --task "fix failing login test" --adapters none
+```
+
+Default is `--adapters all`.
+
+## Global Vs Project Runtime
+
+Global install:
+
+- Lives under `~/.harness/harness`.
+- Provides the `harness` CLI.
+- Optionally installs LLM entrypoints so tools can discover Harness.
+- Is installed once per machine.
+
+Project application:
+
+- Happens when you run `harness run --project ...`.
+- Writes `HARNESS.md` and `.harness/*` into the target project only when the task needs TDD or SDD.
+- Makes any LLM read the same project contract.
+- Keeps tool-specific files as adapters only.
+
+This distinction matters: installing Harness globally does not modify your projects. Applying Harness to a project does.
+
+## Registries And Memory
+
+Harness can select user-defined skills, agents, docs, and rules by trigger.
+
+Global registries:
+
+```text
+~/.harness/skills.json
+~/.harness/agents.json
+~/.harness/docs.json
+~/.harness/rules.json
+```
+
+Project registries:
+
+```text
+.harness/skills.json
+.harness/agents.json
+.harness/docs.json
+.harness/rules.json
+```
+
+Example entry:
+
+```json
+{
+  "name": "backend-api",
+  "triggers": ["api", "endpoint", "auth", "database"],
+  "description": "Backend API implementation rules",
+  "path": "/path/to/SKILL.md"
+}
+```
+
+Manage project registries:
+
+```bash
+harness skill add --project api --name backend-api --triggers api,endpoint,auth --path /path/to/SKILL.md
+harness skill list --project api
+
+harness agent add --project api --name security-auditor --triggers security,auth --path /path/to/agent.md
+harness doc add --project api --name api-contract --triggers api,contract --path /path/to/openapi.md
+harness rule add --project api --name api-layering --triggers api,repository --path /path/to/rules.md
+```
+
+Manage project memory:
+
+```bash
+harness memory add --project api --key api_style --value "Use /v1 endpoints only"
+harness memory list --project api
+```
+
+## Process Rules
+
+- One feature at a time.
+- TDD requires a test or an explicit no-test justification.
+- TDD pauses when expected behavior is ambiguous.
+- SDD does not implement `spec_ready` work before human approval.
+- No `done` without verification, reviewer approval, and audit `GO` or accepted `GO-WITH-RISK`.
+- Subagent outputs go under `progress/` and should return only file references.
 
 ## Repository Structure
 
@@ -63,124 +295,3 @@ Runtime code is split by context under `scripts/harness_core/`:
 - `models.py`, `constants.py`, `io.py`: shared models, constants, and JSON persistence.
 
 Installable file templates live in `templates/`, mirroring the files Harness can write into a target project.
-
-## Use
-
-From any shell:
-
-```bash
-harness inspect --project /path/to/project --task "fix failing login test"
-harness run --project /path/to/project --task "fix failing login test" --dry-run
-harness run --project /path/to/project --task "fix failing login test"
-```
-
-From Codex after install, invoke the `harness` skill:
-
-```text
-usa harness para instalar harness en este proyecto
-```
-
-From Claude Code after install, use the slash command:
-
-```text
-/harness instala harness en este proyecto
-```
-
-From Gemini or OpenCode after installing those targets, tell the model:
-
-```text
-instala harness en este proyecto
-```
-
-If a tool does not support a global entrypoint, use the CLI directly or tell the model to read this repo's `README.md`; after harness is applied to a project, all LLMs should read `HARNESS.md` and `.harness/ENTRYPOINT.md`.
-
-Register local aliases without hardcoding private paths in the repo:
-
-```bash
-harness register --alias api --path /path/to/project
-harness run --project api --task "review current issues and implement them"
-```
-
-Use a GitHub repo directly:
-
-```bash
-harness run --project owner/repo --task "triage issues and set up SDD"
-```
-
-Choose adapters explicitly when needed:
-
-```bash
-harness run --project /path/to/project --task "fix failing login test" --adapters all
-harness run --project /path/to/project --task "fix failing login test" --adapters agents,claude,gemini
-harness run --project /path/to/project --task "fix failing login test" --adapters none
-```
-
-Default is `--adapters all` for broad tool coverage.
-
-When TDD or SDD is selected, harness installs the universal runtime in the target project:
-
-- `HARNESS.md` as the runtime contract.
-- `.harness/ENTRYPOINT.md` as the neutral startup instructions.
-- `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/memory.json`.
-- `.harness/agents/*` for universal SDD role definitions when SDD is selected.
-- `docs/audit.md` for the mandatory TDD/SDD closure gate.
-- Optional adapter files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`, depending on `--adapters`.
-
-When `simple` is selected, harness installs nothing.
-
-## Registries
-
-Global registries live in `~/.harness/{skills,agents,docs,rules}.json`; project registries live in `.harness/{skills,agents,docs,rules}.json`.
-
-```json
-[
-  {
-    "name": "backend-api",
-    "triggers": ["api", "endpoint", "auth", "database"],
-    "description": "Backend API implementation rules",
-    "path": "/path/to/SKILL.md"
-  }
-]
-```
-
-Harness selects entries by task text, project profile, and file context. The core does not hardcode framework architecture rules; register project-specific rules/docs/agents/skills and let triggers activate them.
-
-Manage project registries without editing JSON manually:
-
-```bash
-harness skill add --project api \
-  --name backend-api \
-  --triggers api,endpoint,auth,database \
-  --path /path/to/SKILL.md
-
-harness skill list --project api
-
-harness rule add --project api --name api-layering --triggers api,repository,service --path /path/to/rules.md
-harness doc add --project api --name api-contract --triggers contract,endpoint --path /path/to/openapi.md
-harness agent add --project api --name security-auditor --triggers security,auth --path /path/to/agent.md
-```
-
-Manage project memory:
-
-```bash
-harness memory add --project api --key api_style --value "Use /v1 endpoints only"
-harness memory list --project api
-```
-
-## Process Rules
-
-- One feature at a time.
-- No `done` without green verification, reviewer approval, and audit `GO` or accepted `GO-WITH-RISK`.
-- TDD pauses for human clarification when expected behavior is ambiguous.
-- TDD closure requires a test or explicit no-test justification plus audit report.
-- `progress/current.md` is live session state.
-- `progress/history.md` is append-only session history.
-- If blocked, document the blocker in `progress/current.md` and stop.
-
-## LLM Adoption
-
-Any LLM can adopt harness by reading `HARNESS.md` and `.harness/ENTRYPOINT.md` in the target project.
-
-SDD role definitions live only under `.harness/agents/*`.
-
-Adapters are tool entrypoints only. New adapters can be added through `.harness/adapters.json` without changing the core runtime.
