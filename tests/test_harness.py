@@ -104,7 +104,7 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/CHECKPOINTS.md", result.stdout)
             self.assertIn("/specs/.gitkeep", result.stdout)
             self.assertIn("/.harness/agents/leader.md", result.stdout)
-            self.assertIn("/.claude/agents/leader.md", result.stdout)
+            self.assertNotIn("/.claude/agents/leader.md", result.stdout)
 
     def test_skill_add_and_list(self):
         with tempfile.TemporaryDirectory() as tmp:

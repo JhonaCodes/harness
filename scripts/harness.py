@@ -30,17 +30,17 @@ DEFAULT_ADAPTERS: dict[str, dict[str, str]] = {
     "agents": {
         "file": "AGENTS.md",
         "name": "Agents Adapter",
-        "description": "Compatibility entrypoint for agents that read AGENTS.md.",
+        "description": "Tool entrypoint for agents that read AGENTS.md.",
     },
     "claude": {
         "file": "CLAUDE.md",
         "name": "Claude Adapter",
-        "description": "Compatibility entrypoint for Claude-style project instructions.",
+        "description": "Tool entrypoint for Claude-style project instructions.",
     },
     "gemini": {
         "file": "GEMINI.md",
         "name": "Gemini Adapter",
-        "description": "Compatibility entrypoint for Gemini-style project instructions.",
+        "description": "Tool entrypoint for Gemini-style project instructions.",
     },
 }
 
@@ -547,7 +547,7 @@ def adapter_entrypoint(adapter: dict[str, str], workflow: str, decision: Decisio
 
 ## Harness Adapter
 
-This file is a compatibility adapter. The source of truth is `HARNESS.md` and `.harness/ENTRYPOINT.md`.
+This file is a tool adapter. The source of truth is `HARNESS.md` and `.harness/ENTRYPOINT.md`.
 
 Before answering, editing, or delegating:
 
@@ -577,7 +577,7 @@ def docs(profile: str, workflow: str, decision: Decision) -> dict[str, str]:
 
 - Prefer existing project patterns.
 - Keep changes scoped to the active task.
-- Replace deprecated flows instead of preserving obsolete behavior by default.
+- Replace obsolete flows instead of preserving outdated behavior by default.
 - Use selected skills from the harness decision when available.
 """
     architecture = """# Architecture
@@ -752,10 +752,6 @@ def files_for(root: Path, workflow: str, decision: Decision, adapters: list[dict
                 ".harness/agents/spec_author.md": agent_file("spec_author"),
                 ".harness/agents/implementer.md": agent_file("implementer"),
                 ".harness/agents/reviewer.md": agent_file("reviewer"),
-                ".claude/agents/leader.md": agent_file("leader"),
-                ".claude/agents/spec_author.md": agent_file("spec_author"),
-                ".claude/agents/implementer.md": agent_file("implementer"),
-                ".claude/agents/reviewer.md": agent_file("reviewer"),
             }
         )
     return files

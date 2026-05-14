@@ -55,7 +55,7 @@ harness run --project /path/to/project --task "fix failing login test" --adapter
 harness run --project /path/to/project --task "fix failing login test" --adapters none
 ```
 
-Default is `--adapters all` for compatibility.
+Default is `--adapters all` for broad tool coverage.
 
 When TDD or SDD is selected, harness installs the universal runtime in the target project:
 
@@ -115,6 +115,6 @@ harness memory list --project api
 
 Any LLM can adopt harness by reading `HARNESS.md` and `.harness/ENTRYPOINT.md` in the target project.
 
-SDD role definitions live under `.harness/agents/*`; tool-specific agent folders are compatibility copies.
+SDD role definitions live only under `.harness/agents/*`.
 
-Adapters are compatibility files only. New adapters can be added through `.harness/adapters.json` without changing the core runtime.
+Adapters are tool entrypoints only. New adapters can be added through `.harness/adapters.json` without changing the core runtime.

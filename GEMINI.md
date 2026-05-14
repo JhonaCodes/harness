@@ -1,6 +1,6 @@
 # Gemini Harness Adapter
 
-This file is a compatibility adapter. The universal source of truth is the Harness runtime itself and, inside an applied project, `HARNESS.md` plus `.harness/ENTRYPOINT.md`.
+This file is a tool adapter. The universal source of truth is the Harness runtime itself and, inside an applied project, `HARNESS.md` plus `.harness/ENTRYPOINT.md`.
 
 If the user did not provide a project, ask for one of:
 

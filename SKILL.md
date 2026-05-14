@@ -61,11 +61,11 @@ python3 <this-skill>/scripts/harness.py register --alias api --path /path/to/pro
 
 - `simple`: no files; writes only a dry-run/report message when requested.
 - `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`), `docs/verification.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
-- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, universal roles in `.harness/agents/{leader,spec_author,implementer,reviewer}.md`, and compatibility copies in `.claude/agents/{leader,spec_author,implementer,reviewer}.md`.
+- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, and universal roles in `.harness/agents/{leader,spec_author,implementer,reviewer}.md`.
 
 Adapter options:
 
-- `--adapters all`: install built-in compatibility adapters.
+- `--adapters all`: install built-in tool adapters.
 - `--adapters agents,claude,gemini`: install only selected adapters.
 - `--adapters none`: install no tool-specific adapter files.
 

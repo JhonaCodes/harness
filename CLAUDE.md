@@ -1,6 +1,6 @@
 # Claude Harness Adapter
 
-This file is a compatibility adapter. The universal source of truth is the Harness runtime itself and, inside an applied project, `HARNESS.md` plus `.harness/ENTRYPOINT.md`.
+This file is a tool adapter. The universal source of truth is the Harness runtime itself and, inside an applied project, `HARNESS.md` plus `.harness/ENTRYPOINT.md`.
 
 1. If no project URL, `owner/repo`, alias, or local path was provided, ask for it.
 2. Run:
