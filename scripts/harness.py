@@ -344,6 +344,13 @@ for f in features:
         if missing:
             print(f"[FAIL] Missing specs for {f['name']}: {', '.join(missing)}")
             sys.exit(1)
+    if f.get("sdd") and f.get("status") == "done":
+        review_path = os.path.join("progress", f"review_{f['name']}.md")
+        audit_path = os.path.join("progress", f"audit_{f['name']}.md")
+        missing = [path for path in (review_path, audit_path) if not os.path.isfile(path)]
+        if missing:
+            print(f"[FAIL] Done feature missing review/audit evidence: {', '.join(missing)}")
+            sys.exit(1)
 print(f"[OK] feature_list.json valid ({len(features)} features)")
 PY
 if [ $? -ne 0 ]; then EXIT_CODE=1; fi
@@ -362,7 +369,7 @@ run_step() {{
 }}
 
 echo "── Harness validation ({workflow}/{profile}) ─────────────"
-for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json docs/verification.md progress/current.md; do
+for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json docs/verification.md docs/audit.md progress/current.md; do
   if [ -f "$f" ]; then ok "Exists $f"; else fail "Missing $f"; EXIT_CODE=1; fi
 done
 {sdd_validation}
@@ -389,14 +396,16 @@ Reason: {decision.reason}
 
 The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific files are adapters only.
 
-Use RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> AUDIT.
+Use RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
 
 1. Write or identify a failing test for the behavior.
 2. If the expected behavior is ambiguous, stop and ask for human clarification before implementing.
 3. Implement the smallest change that passes.
 4. Refactor while tests remain green.
 5. Run `./init.sh`.
-6. Record evidence in `progress/current.md`.
+6. Run the focused audit from `docs/audit.md`.
+7. Record test and audit evidence in `progress/current.md`.
+8. Do not close without a test or written no-test justification.
 
 {END_MARKER}
 """
@@ -414,7 +423,7 @@ The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific fi
 
 Use strict Spec Driven Development:
 
-`pending -> spec_ready -> human approval -> in_progress -> implementer -> reviewer -> done`
+`pending -> spec_ready -> human approval -> in_progress -> implementer -> reviewer -> auditor -> done`
 
 ## Runtime Roles
 
@@ -422,6 +431,7 @@ Use strict Spec Driven Development:
 - Spec author: writes requirements/design/tasks and stops at `spec_ready`.
 - Implementer: implements exactly one approved feature and writes tests.
 - Reviewer: reviews only, runs verification, and writes a verdict.
+- Auditor: validates context, business rules, code quality, tests, confidence, and go/no-go.
 
 ## State Rules
 
@@ -433,6 +443,7 @@ Use strict Spec Driven Development:
 Do not implement a pending SDD feature until specs exist.
 Do not implement a `spec_ready` feature until a human approves it.
 Every completed `R<n>` requirement must map to at least one test.
+Every `done` feature must have reviewer approval and `progress/audit_<feature>.md` with `GO` or accepted `GO-WITH-RISK`.
 
 {END_MARKER}
 """
@@ -457,9 +468,12 @@ def project_config(root: Path, workflow: str, decision: Decision) -> str:
             "simple_installs_no_files": True,
             "tool_specific_files_are_adapters": True,
             "human_checkpoint_for_ambiguous_tdd": workflow == "tdd",
+            "mandatory_audit_before_closure": workflow in {"tdd", "sdd"},
+            "audit_policy": "risk_based",
             "one_feature_at_a_time": workflow == "sdd",
             "human_approval_required_for_spec_ready": workflow == "sdd",
             "review_required_before_done": workflow == "sdd",
+            "audit_required_before_done": workflow == "sdd",
         },
     }
     if decision.repo:
@@ -487,7 +501,10 @@ def workflow_json(workflow: str, decision: Decision, adapters: list[dict[str, st
             "simple_installs_no_files": workflow == "simple",
             "tdd_human_checkpoint_if_ambiguous": workflow == "tdd",
             "sdd_human_approval_required": workflow == "sdd",
-            "review_required_before_done": workflow in {"tdd", "sdd"},
+            "review_required_before_done": workflow == "sdd",
+            "mandatory_audit_before_closure": workflow in {"tdd", "sdd"},
+            "audit_policy": "risk_based",
+            "audit_output": ["Context status", "Business-rule status", "Code-quality findings", "Test verification", "Confidence report", "Go/No-Go", "Residual risks"],
         },
     }
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
@@ -520,8 +537,8 @@ This is the neutral startup contract for any LLM working in this project.
    ```
 4. Apply the decided workflow:
    - `simple`: direct work, minimal verification, no persistent state.
-   - `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> AUDIT.
-   - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
+   - `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
+   - `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review -> audit.
 5. Use matching skills from `.harness/skills.json` and `~/.harness/skills.json`.
 6. Read durable project memory from `.harness/memory.json` and optional global memory if configured.
 
@@ -534,7 +551,7 @@ Selected skills: {skills}.
 - Tool-specific files are adapters, not the source of truth.
 - Do not skip the TDD ambiguity checkpoint when behavior is unclear.
 - For SDD, do not skip `spec_ready` human approval.
-- Do not mark work `done` without verification and review evidence.
+- Do not mark work `done` without verification, review, and audit evidence.
 
 {END_MARKER}
 """
@@ -570,9 +587,76 @@ harness inspect --project . --task "<user task>"
 """
 
 
-def docs(profile: str, workflow: str, decision: Decision) -> dict[str, str]:
+def needs_flutter_audit(root: Path, profile: str, decision: Decision) -> bool:
+    if profile == "flutter" or (root / "pubspec.yaml").exists():
+        return True
+    files = discover_files(root, limit=120)
+    if any(path.endswith(".dart") for path in files):
+        return True
+    selected = json.dumps(decision.selected_skills, ensure_ascii=False).lower()
+    return any(term in selected for term in ["flutter", "dart", "reactive", "notifier"])
+
+
+def audit_doc(root: Path, profile: str, workflow: str, decision: Decision) -> str:
+    mode = "strict" if workflow == "sdd" else "focused"
+    flutter_section = ""
+    if needs_flutter_audit(root, profile, decision):
+        flutter_section = """
+## Flutter/Dart Strict Checklist
+
+Apply this checklist when the changed surface touches Flutter/Dart:
+
+- Architecture and module boundaries.
+- ReactiveNotifier usage when present: constructors, self-init, builders, dependencies, and forbidden patterns.
+- Widgets: extraction opportunities, hardcoded values, const usage, rebuild scope, resource leaks.
+- Models and repositories: purity, serialization, Result/error handling, no UI imports in data layers.
+- Tests, performance, security, and scoring.
+
+Do not require reading every `.dart` file unless the task explicitly asks for full audit/full analysis or the SDD feature is high risk.
+"""
+    return f"""# Audit
+
+Workflow: `{workflow}`
+Mode: `{mode}`
+Policy: risk-based mandatory closure gate.
+
+Use this audit after meaningful implementation and before closing TDD/SDD work.
+
+## Required Roles
+
+Execute in order:
+
+1. Context validator: verify source of truth, selected skills, project docs, relevant MCP/blueprints, and scope.
+2. Business-rule validator: check permissions, workflow states, invariants, domain rules, and user-facing constraints.
+3. Code-quality auditor: check correctness, architecture, layering, maintainability, security, and regression risk.
+4. Test verifier: map changed behavior to tests/checks, verify commands run, and identify coverage gaps.
+5. Confidence reporter: summarize confidence and issue `GO`, `GO-WITH-RISK`, or `NO-GO`.
+
+## Evidence Rules
+
+- Findings require evidence, preferably `file:line`.
+- Use severities: `critical`, `high`, `medium`, `low`, `info`.
+- Report missing evidence as a gap.
+- Do not edit code during audit.
+
+## Required Output
+
+1. Context status
+2. Business-rule status
+3. Code-quality findings
+4. Test verification
+5. Confidence report
+6. Go/No-Go
+7. Residual risks
+{flutter_section}
+"""
+
+
+def docs(root: Path, profile: str, workflow: str, decision: Decision) -> dict[str, str]:
     verification = "# Verification\n\nRun:\n\n```bash\n./init.sh\n```\n\n"
-    verification += f"Profile: `{profile}`\nWorkflow: `{workflow}`\n"
+    verification += f"Profile: `{profile}`\nWorkflow: `{workflow}`\n\n"
+    if workflow in {"tdd", "sdd"}:
+        verification += "Closure requires a completed audit from `docs/audit.md` with `GO`, `GO-WITH-RISK`, or `NO-GO`.\n"
     conventions = """# Conventions
 
 - Prefer existing project patterns.
@@ -594,7 +678,7 @@ Each SDD feature uses:
 
 Flow:
 
-`pending -> spec_ready -> human approval -> in_progress -> implementer -> reviewer -> done`
+`pending -> spec_ready -> human approval -> in_progress -> implementer -> reviewer -> auditor -> done`
 
 ## Process Rules
 
@@ -602,15 +686,19 @@ Flow:
 - The spec author creates specs and stops at `spec_ready`.
 - The implementer works on exactly one approved feature.
 - The reviewer never edits code; it approves or rejects with concrete evidence.
+- The auditor validates context, business rules, code quality, tests, confidence, and go/no-go.
 - Subagents write results to files in `progress/` and return only the file reference.
-- Do not mark a feature `done` until `./init.sh` is green and review is approved.
+- Do not mark a feature `done` until `./init.sh` is green, review is approved, and `progress/audit_<feature>.md` is `GO` or accepted `GO-WITH-RISK`.
 """
-    return {
+    result = {
         "docs/verification.md": verification,
         "docs/conventions.md": conventions,
         "docs/architecture.md": architecture,
         "docs/specs.md": specs,
     }
+    if workflow in {"tdd", "sdd"}:
+        result["docs/audit.md"] = audit_doc(root, profile, workflow, decision)
+    return result
 
 
 def feature_list(root: Path, repo: str | None) -> str:
@@ -648,7 +736,7 @@ You coordinate and decompose work. You do not implement application code directl
 - If a feature is `spec_ready`, continue only after explicit human approval.
 - If implementation is needed, launch one implementer.
 - If investigation is needed, launch 2-3 explorers with narrow questions.
-- After implementation, launch one reviewer before anything becomes `done`.
+- After implementation, launch one reviewer, then one auditor before anything becomes `done`.
 
 ## Anti Telephone Rule
 
@@ -700,6 +788,33 @@ or
 
 `blocked -> progress/current.md`
 """
+    if role == "auditor":
+        return """# Auditor Agent
+
+You audit only. You do not edit code.
+
+## Protocol
+
+1. Read `HARNESS.md`, `.harness/ENTRYPOINT.md`, `docs/audit.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, and `CHECKPOINTS.md`.
+2. Inspect modified files, specs, `progress/impl_<feature>.md`, and `progress/review_<feature>.md`.
+3. Execute the roles in `docs/audit.md`: Context validator, Business-rule validator, Code-quality auditor, Test verifier, Confidence reporter.
+4. Verify traceability: `R<n> -> test/check -> audit verdict`.
+5. Verify `./init.sh` evidence.
+6. Write `progress/audit_<feature>.md`.
+7. Do not mark `done`; the leader applies the final state after the audit verdict.
+
+Final response:
+
+`GO -> progress/audit_<feature>.md`
+
+or
+
+`GO-WITH-RISK -> progress/audit_<feature>.md`
+
+or
+
+`NO-GO -> progress/audit_<feature>.md`
+"""
     return """# Reviewer Agent
 
 You review only. You do not edit code.
@@ -712,6 +827,7 @@ You review only. You do not edit code.
 4. Verify every task is complete or has a documented blocker.
 5. Run `./init.sh`.
 6. Write the verdict to `progress/review_<feature>.md`.
+7. Do not mark `done`; audit must run after review.
 
 Final response:
 
@@ -726,6 +842,7 @@ or
 def files_for(root: Path, workflow: str, decision: Decision, adapters: list[dict[str, str]]) -> dict[str, str]:
     if workflow == "simple":
         return {}
+    docs_map = docs(root, decision.profile, workflow, decision)
     files = {
         "HARNESS.md": harness_md(workflow, decision),
         "init.sh": init_sh(decision.profile, workflow),
@@ -735,23 +852,25 @@ def files_for(root: Path, workflow: str, decision: Decision, adapters: list[dict
         ".harness/adapters.json": adapters_json(adapters),
         ".harness/skills.json": empty_skills(),
         ".harness/memory.json": empty_memory(),
-        "docs/verification.md": docs(decision.profile, workflow, decision)["docs/verification.md"],
+        "docs/verification.md": docs_map["docs/verification.md"],
+        "docs/audit.md": docs_map["docs/audit.md"],
         "progress/current.md": "# Current Harness Session\n\nStatus: idle\n",
     }
     for adapter in adapters:
         files[adapter["file"]] = adapter_entrypoint(adapter, workflow, decision)
     if workflow == "sdd":
-        files.update(docs(decision.profile, workflow, decision))
+        files.update(docs_map)
         files.update(
             {
                 "feature_list.json": feature_list(root, decision.repo),
-                "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, and `reviewer.md` exist.\n- [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, and `docs/verification.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Deprecated behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
+                "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, `reviewer.md`, and `auditor.md` exist.\n- [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, `docs/verification.md`, and `docs/audit.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Obsolete behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test or check.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n- [ ] The audit verdict exists in `progress/audit_<feature>.md` and is `GO` or accepted `GO-WITH-RISK`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
                 "progress/history.md": "# Harness History\n\n",
                 "specs/.gitkeep": "",
                 ".harness/agents/leader.md": agent_file("leader"),
                 ".harness/agents/spec_author.md": agent_file("spec_author"),
                 ".harness/agents/implementer.md": agent_file("implementer"),
                 ".harness/agents/reviewer.md": agent_file("reviewer"),
+                ".harness/agents/auditor.md": agent_file("auditor"),
             }
         )
     return files

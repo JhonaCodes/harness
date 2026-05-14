@@ -53,6 +53,7 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/.harness/adapters.json", result.stdout)
             self.assertIn("/.harness/skills.json", result.stdout)
             self.assertIn("/.harness/memory.json", result.stdout)
+            self.assertIn("/docs/audit.md", result.stdout)
 
     def test_adapters_none_installs_only_universal_entrypoints(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -70,6 +71,7 @@ class HarnessCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("/HARNESS.md", result.stdout)
             self.assertIn("/.harness/ENTRYPOINT.md", result.stdout)
+            self.assertIn("/docs/audit.md", result.stdout)
             self.assertNotIn("/AGENTS.md", result.stdout)
             self.assertNotIn("/CLAUDE.md", result.stdout)
             self.assertNotIn("/GEMINI.md", result.stdout)
@@ -104,7 +106,36 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/CHECKPOINTS.md", result.stdout)
             self.assertIn("/specs/.gitkeep", result.stdout)
             self.assertIn("/.harness/agents/leader.md", result.stdout)
+            self.assertIn("/.harness/agents/auditor.md", result.stdout)
             self.assertNotIn("/.claude/agents/leader.md", result.stdout)
+
+    def test_workflow_json_includes_audit_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            result = self.run_harness("run", "--project", str(project), "--task", "fix failing login test", "--adapters", "none")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads((project / ".harness" / "workflow.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["rules"]["audit_policy"], "risk_based")
+            self.assertTrue(payload["rules"]["mandatory_audit_before_closure"])
+
+    def test_sdd_checkpoints_require_audit_verdict_before_done(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            result = self.run_harness("run", "--project", str(project), "--task", "triage github issues and create API contract specs", "--adapters", "none")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (project / "CHECKPOINTS.md").read_text(encoding="utf-8")
+            self.assertIn("progress/audit_<feature>.md", content)
+            self.assertIn("GO-WITH-RISK", content)
+
+    def test_flutter_project_gets_strict_audit_checklist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project / "pubspec.yaml").write_text("name: demo\n", encoding="utf-8")
+            result = self.run_harness("run", "--project", str(project), "--task", "fix failing widget test", "--adapters", "none")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (project / "docs" / "audit.md").read_text(encoding="utf-8")
+            self.assertIn("Flutter/Dart Strict Checklist", content)
+            self.assertIn("ReactiveNotifier", content)
 
     def test_skill_add_and_list(self):
         with tempfile.TemporaryDirectory() as tmp:

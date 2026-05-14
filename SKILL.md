@@ -10,7 +10,7 @@ Use this skill as the entrypoint for project work. The harness evaluates the pro
 ## Decision Rule
 
 - `simple`: use for small questions, one-off edits, obvious fixes, or work that does not need repo-level process. Do not install files.
-- `tdd`: use for bugs, focused behavior changes, or small features where tests should drive implementation; pause for human clarification when expected behavior is ambiguous.
+- `tdd`: use for bugs, focused behavior changes, or small features where tests should drive implementation; pause for human clarification when expected behavior is ambiguous and close with mandatory audit.
 - `sdd`: use for multi-issue backlogs, product/API contracts, cross-module work, human-approved specs, or when the user explicitly asks for SDD.
 - `auto`: inspect the request and repo, then choose one of the above. Default to `simple` unless the work clearly benefits from persistent workflow state.
 
@@ -60,8 +60,8 @@ python3 <this-skill>/scripts/harness.py register --alias api --path /path/to/pro
 ## What Gets Installed
 
 - `simple`: no files; writes only a dry-run/report message when requested.
-- `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`), `docs/verification.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
-- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, and universal roles in `.harness/agents/{leader,spec_author,implementer,reviewer}.md`.
+- `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`), `docs/verification.md`, `docs/audit.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
+- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, and universal roles in `.harness/agents/{leader,spec_author,implementer,reviewer,auditor}.md`.
 
 Adapter options:
 
@@ -77,7 +77,9 @@ Adapter options:
 - Existing files are not blindly overwritten.
 - Managed sections use markers.
 - Conflicts are written to `progress/harness_apply_report.md`.
-- SDD remains strict: `pending -> spec_ready -> human approval -> in_progress -> review -> done`.
+- TDD requires test evidence or a written no-test justification, then audit.
+- SDD remains strict: `pending -> spec_ready -> human approval -> in_progress -> review -> audit -> done`.
+- SDD `done` requires reviewer approval plus audit `GO` or accepted `GO-WITH-RISK`.
 
 ## Skills Registry
 
@@ -105,3 +107,5 @@ harness skill list --project <project>
 harness memory add --project <project> --key rule --value "project-specific note"
 harness memory list --project <project>
 ```
+
+Register specialized audit skills with triggers such as `audit`, `flutter`, `security`, or `backend`; harness selects them by task text, profile, and file context.

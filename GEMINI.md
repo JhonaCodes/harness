@@ -28,11 +28,13 @@ When the target project already contains harness files, first read:
 - `.harness/workflow.json`
 - `.harness/skills.json`
 - `.harness/memory.json`
+- `docs/audit.md`
 
 For SDD:
 
 - Coordinate as leader.
-- Use separate spec author, implementer, and reviewer roles.
+- Use separate spec author, implementer, reviewer, and auditor roles.
 - Keep subagent outputs in `progress/`.
 - Work on one feature at a time.
 - Stop at `spec_ready` until human approval is explicit.
+- Do not mark `done` until review and audit evidence exist.

@@ -7,8 +7,8 @@ Universal Harness runtime for any LLM that needs to decide how much process a pr
 Harness evaluates the project and task, selects configured skills, then chooses:
 
 - `simple`: no persistent files, direct work.
-- `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> AUDIT.
-- `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review.
+- `tdd`: RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
+- `sdd`: requirements -> design -> tasks -> human approval -> implementation -> review -> audit.
 
 For SDD work, harness installs an agent process:
 
@@ -16,6 +16,7 @@ For SDD work, harness installs an agent process:
 - spec_author writes requirements/design/tasks and stops for approval;
 - implementer handles exactly one approved feature and writes tests;
 - reviewer approves or rejects without editing code;
+- auditor validates context, business rules, code quality, tests, confidence, and go/no-go;
 - subagents write outputs to `progress/` and return only file references.
 
 ## Install
@@ -63,6 +64,7 @@ When TDD or SDD is selected, harness installs the universal runtime in the targe
 - `.harness/ENTRYPOINT.md` as the neutral startup instructions.
 - `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/memory.json`.
 - `.harness/agents/*` for universal SDD role definitions when SDD is selected.
+- `docs/audit.md` for the mandatory TDD/SDD closure gate.
 - Optional adapter files such as `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`, depending on `--adapters`.
 
 When `simple` is selected, harness installs nothing.
@@ -83,6 +85,7 @@ Global skills live in `~/.harness/skills.json`; project skills live in `.harness
 ```
 
 Harness selects skills by task text, project profile, and file context.
+Register specialized audit skills the same way; matching triggers make harness tell the agent which audit rules to load.
 
 Manage project skills without editing JSON manually:
 
@@ -105,8 +108,9 @@ harness memory list --project api
 ## Process Rules
 
 - One feature at a time.
-- No `done` without green verification.
+- No `done` without green verification, reviewer approval, and audit `GO` or accepted `GO-WITH-RISK`.
 - TDD pauses for human clarification when expected behavior is ambiguous.
+- TDD closure requires a test or explicit no-test justification plus audit report.
 - `progress/current.md` is live session state.
 - `progress/history.md` is append-only session history.
 - If blocked, document the blocker in `progress/current.md` and stop.
