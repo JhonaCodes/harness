@@ -1,4 +1,5 @@
 import json
+import importlib.util
 import subprocess
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "harness.py"
+QUICK_VALIDATE = ROOT / "quick_validate.py"
 
 
 class HarnessCliTests(unittest.TestCase):
@@ -107,7 +109,8 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/specs/.gitkeep", result.stdout)
             self.assertIn("/.harness/agents/leader.md", result.stdout)
             self.assertIn("/.harness/agents/auditor.md", result.stdout)
-            self.assertNotIn("/.claude/agents/leader.md", result.stdout)
+            forbidden_agent_path = "/" + ".claude" + "/agents/leader.md"
+            self.assertNotIn(forbidden_agent_path, result.stdout)
 
     def test_workflow_json_includes_audit_policy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -168,6 +171,19 @@ class HarnessCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["entries"]["api_style"], "Use /v1")
+
+    def test_quick_validate_detects_generated_absolute_user_paths(self):
+        spec = importlib.util.spec_from_file_location("quick_validate", QUICK_VALIDATE)
+        self.assertIsNotNone(spec)
+        module = importlib.util.module_from_spec(spec)
+        self.assertIsNotNone(spec.loader)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project / "leak.txt").write_text("/" + "Users" + "/example/project\n", encoding="utf-8")
+            errors = []
+            module.check_private_refs(project, errors)
+            self.assertTrue(errors)
 
 
 if __name__ == "__main__":

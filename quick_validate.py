@@ -10,14 +10,10 @@ import sys
 from pathlib import Path
 
 
-PRIVATE_PATTERNS = [
-    "Aulamas",
-    "JhonacodeProjects",
-    "/Volumes/Data/Private/Projects/JhonacodeProjects",
-    "/Users/jhonacode",
-    "aulamas_api",
-    "nui-app",
-    "connect_migration",
+SENSITIVE_PATH_PATTERNS = [
+    ("absolute user home path", re.compile(r"(?<![\w.-])/Users/[A-Za-z0-9._-]+(?:/[^\s`\"']*)?")),
+    ("absolute home path", re.compile(r"(?<![\w.-])/home/[A-Za-z0-9._-]+(?:/[^\s`\"']*)?")),
+    ("absolute volume private path", re.compile(r"(?<![\w.-])/Volumes/[^\s`\"']*(?:Private|WorkSpace|Workspace)[^\s`\"']*")),
 ]
 
 
@@ -75,17 +71,16 @@ def check_private_refs(root: Path, errors: list[str]) -> None:
     for path in root.rglob("*"):
         if any(part in ignored for part in path.parts):
             continue
-        if path.name == "quick_validate.py":
-            continue
         if not path.is_file():
             continue
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        for pattern in PRIVATE_PATTERNS:
-            if pattern in text:
-                errors.append(f"private reference '{pattern}' in {path.relative_to(root)}")
+        for label, pattern in SENSITIVE_PATH_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                errors.append(f"{label} in {path.relative_to(root)}: {match.group(0)}")
 
 
 def main() -> int:
