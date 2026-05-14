@@ -33,6 +33,7 @@ Where should Harness install LLM entrypoints?
   3) gemini     Gemini global context
   4) opencode   OpenCode global instructions
   5) none       Runtime and CLI only
+  6) manual     Runtime, CLI, and manual setup instructions
 ```
 
 You can answer with numbers or names:
@@ -40,6 +41,7 @@ You can answer with numbers or names:
 ```text
 1,2,4
 codex,claude,opencode
+manual
 all
 none
 ```
@@ -50,6 +52,7 @@ Non-interactive installs:
 ./install.sh --targets all
 ./install.sh --targets codex,claude
 ./install.sh --targets codex,opencode
+./install.sh --targets manual
 ./install.sh --targets none
 HARNESS_TARGETS=codex,opencode ./install.sh
 ```
@@ -72,6 +75,7 @@ Targets install discovery entrypoints for LLM tools. They do not change the univ
 | `claude` | Claude Code command at `$CLAUDE_HOME/commands/harness.md` | Run `/harness ...` |
 | `gemini` | Managed Harness section in `$GEMINI_HOME/GEMINI.md` | Ask Gemini to install/apply Harness |
 | `opencode` | Managed Harness section in `$OPENCODE_HOME/AGENTS.md` | Ask OpenCode to install/apply Harness |
+| `manual` | No entrypoint; prints setup instructions | Copy the instructions into any LLM |
 | `none` | No LLM entrypoint | Use the CLI directly |
 
 Default paths are based on your home directory:
@@ -123,6 +127,14 @@ After Harness is applied, read HARNESS.md and .harness/ENTRYPOINT.md.
 ```
 
 If the LLM does not detect Harness automatically, use the CLI directly from a terminal.
+
+You can also install with manual instructions:
+
+```bash
+./install.sh --targets manual
+```
+
+This installs the runtime and CLI, then prints a ready-to-copy prompt for any LLM.
 
 ## Use From CLI
 

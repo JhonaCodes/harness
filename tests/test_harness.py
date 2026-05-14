@@ -401,6 +401,21 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("BEGIN HARNESS_GLOBAL", (home / ".gemini" / "GEMINI.md").read_text(encoding="utf-8"))
             self.assertFalse((home / ".config" / "opencode" / "AGENTS.md").exists())
 
+    def test_install_manual_target_prints_instructions_without_entrypoints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            result = self.run_install(home, "--targets", "manual")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Manual Harness setup for any LLM", result.stdout)
+            self.assertIn("Prompt to paste into any LLM", result.stdout)
+            self.assertIn("Installed LLM entrypoints: none", result.stdout)
+            self.assertIn("Manual setup instructions printed.", result.stdout)
+            self.assertTrue((home / ".local" / "bin" / "harness").exists())
+            self.assertFalse((home / ".codex" / "skills" / "harness").exists())
+            self.assertFalse((home / ".claude" / "commands" / "harness.md").exists())
+            self.assertFalse((home / ".gemini" / "GEMINI.md").exists())
+            self.assertFalse((home / ".config" / "opencode" / "AGENTS.md").exists())
+
     def test_install_interactive_prompt_is_visible_and_accepts_selection(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -408,6 +423,7 @@ class HarnessCliTests(unittest.TestCase):
             self.assertEqual(returncode, 0, output)
             self.assertIn("Where should Harness install LLM entrypoints?", output)
             self.assertIn("5) none", output)
+            self.assertIn("6) manual", output)
             self.assertIn("Installed LLM entrypoints: none", output)
             self.assertTrue((home / ".local" / "bin" / "harness").exists())
             self.assertFalse((home / ".codex" / "skills" / "harness").exists())

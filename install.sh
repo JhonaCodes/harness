@@ -18,6 +18,7 @@ Install Harness runtime and optional LLM entrypoints.
 Usage:
   ./install.sh
   ./install.sh --targets codex,claude,gemini,opencode
+  ./install.sh --targets manual
   HARNESS_TARGETS=codex,opencode ./install.sh
 
 Targets:
@@ -25,6 +26,7 @@ Targets:
   claude      Install Claude Code slash command in $CLAUDE_HOME/commands/harness.md.
   gemini      Add a managed Harness section to $GEMINI_HOME/GEMINI.md.
   opencode    Add a managed Harness section to $OPENCODE_HOME/AGENTS.md.
+  manual      Print manual setup instructions for any LLM.
   all         Install all targets.
   none        Install only runtime and CLI.
 
@@ -70,10 +72,12 @@ Select one or more targets using numbers or names, separated by commas.
   3) gemini     Gemini global context
   4) opencode   OpenCode global instructions
   5) none       Runtime and CLI only
+  6) manual     Runtime, CLI, and manual setup instructions
 
 Examples:
   1,2,4
   codex,claude
+  manual
   all
   none
 
@@ -122,6 +126,9 @@ normalize_targets() {
       5|none|no )
         printf '\n'
         return
+        ;;
+      6|manual|manual-install|manual-installation )
+        normalized="manual"
         ;;
       all )
         printf '%s\n' "codex claude gemini opencode"
@@ -249,6 +256,39 @@ EOF
   echo "OpenCode global instructions updated at $OPENCODE_HOME/AGENTS.md"
 }
 
+print_manual_instructions() {
+  cat <<EOF
+
+Manual Harness setup for any LLM
+================================
+
+Harness runtime is installed at:
+  $RUNTIME_DIR
+
+Harness CLI is installed at:
+  $BIN_DIR/harness
+
+If $BIN_DIR is in PATH, use:
+  harness inspect --project <path|url|owner/repo> --task "<task>"
+  harness run --project <path|url|owner/repo> --task "<task>" --dry-run
+  harness run --project <path|url|owner/repo> --task "<task>"
+
+If it is not in PATH, use:
+  $BIN_DIR/harness inspect --project <path|url|owner/repo> --task "<task>"
+
+Prompt to paste into any LLM:
+  Use the Harness CLI for this project.
+  First run:
+  harness inspect --project <path|url|owner/repo> --task "<task>"
+  Then run a dry-run:
+  harness run --project <path|url|owner/repo> --task "<task>" --dry-run
+  If the dry-run is correct, apply it:
+  harness run --project <path|url|owner/repo> --task "<task>"
+  After Harness is applied, read HARNESS.md and .harness/ENTRYPOINT.md.
+
+EOF
+}
+
 if [ -z "$TARGETS_RAW" ]; then
   if [ -t 0 ]; then
     TARGETS_RAW="$(prompt_targets)"
@@ -264,20 +304,30 @@ TARGETS="$(normalize_targets "$TARGETS_RAW")"
 echo "Installing Harness runtime..."
 install_runtime
 
+ENTRYPOINT_TARGETS=""
+MANUAL_REQUESTED=0
+add_entrypoint_target() {
+  ENTRYPOINT_TARGETS="${ENTRYPOINT_TARGETS:+$ENTRYPOINT_TARGETS }$1"
+}
+
 for target in $TARGETS; do
   case "$target" in
-    codex) install_codex ;;
-    claude) install_claude ;;
-    gemini) install_gemini ;;
-    opencode) install_opencode ;;
+    codex) install_codex; add_entrypoint_target codex ;;
+    claude) install_claude; add_entrypoint_target claude ;;
+    gemini) install_gemini; add_entrypoint_target gemini ;;
+    opencode) install_opencode; add_entrypoint_target opencode ;;
+    manual) MANUAL_REQUESTED=1; print_manual_instructions ;;
   esac
 done
 
 echo "Harness installed at $RUNTIME_DIR"
 echo "CLI installed at $BIN_DIR/harness"
-if [ -n "$TARGETS" ]; then
-  echo "Installed LLM entrypoints: $TARGETS"
+if [ -n "$ENTRYPOINT_TARGETS" ]; then
+  echo "Installed LLM entrypoints: $ENTRYPOINT_TARGETS"
 else
   echo "Installed LLM entrypoints: none"
+fi
+if [ "$MANUAL_REQUESTED" -eq 1 ]; then
+  echo "Manual setup instructions printed."
 fi
 echo "Add $BIN_DIR to PATH if needed."

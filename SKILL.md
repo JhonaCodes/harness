@@ -34,6 +34,7 @@ Interactive installs ask which LLM entrypoints to install. Scripted installs can
 
 ```bash
 ./install.sh --targets codex,claude,gemini,opencode
+./install.sh --targets manual
 ./install.sh --targets none
 HARNESS_TARGETS=codex,opencode ./install.sh
 ```

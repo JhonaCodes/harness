@@ -25,6 +25,7 @@ Where should Harness install LLM entrypoints?
   3) gemini     Gemini global context
   4) opencode   OpenCode global instructions
   5) none       Runtime and CLI only
+  6) manual     Runtime, CLI, and manual setup instructions
 ```
 
 You can answer with numbers or names:
@@ -32,6 +33,7 @@ You can answer with numbers or names:
 ```text
 1,2,4
 codex,claude,opencode
+manual
 all
 none
 ```
@@ -43,6 +45,7 @@ For scripts, CI, or reproducible installs:
 ```bash
 ./install.sh --targets codex,claude,gemini,opencode
 ./install.sh --targets codex,opencode
+./install.sh --targets manual
 ./install.sh --targets none
 HARNESS_TARGETS=codex,claude ./install.sh
 ```
@@ -55,6 +58,7 @@ HARNESS_TARGETS=codex,claude ./install.sh
 - `claude`: installs the `/harness` command for Claude Code.
 - `gemini`: adds a managed Harness section to Gemini global context.
 - `opencode`: adds a managed Harness section to OpenCode global instructions.
+- `manual`: installs runtime/CLI and prints setup instructions for any LLM.
 - `none`: installs no LLM entrypoints.
 
 Tool-specific files only point back to the universal runtime. The source of truth remains `HARNESS.md` and `.harness/ENTRYPOINT.md` inside each prepared project.
@@ -94,6 +98,14 @@ harness inspect --project <path|url|owner/repo> --task "<task>"
 Then, if the project should be prepared:
 harness run --project <path|url|owner/repo> --task "<task>"
 ```
+
+Manual target:
+
+```bash
+./install.sh --targets manual
+```
+
+This prints a ready-to-copy prompt that tells any LLM how to call `harness inspect`, `harness run --dry-run`, and `harness run`.
 
 ## Recommended Flow
 
