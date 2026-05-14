@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "workflow": "{{workflow}}",
+  "reason": "{{reason}}",
+  "profile": "{{profile}}",
+  "selected_skills": [],
+  "selected_capabilities": {
+    "agent": [],
+    "doc": [],
+    "rule": [],
+    "skill": []
+  },
+  "adapters": [],
+  "rules": {
+    "simple_installs_no_files": "{{is_simple}}",
+    "tdd_human_checkpoint_if_ambiguous": "{{is_tdd}}",
+    "sdd_human_approval_required": "{{is_sdd}}",
+    "review_required_before_done": "{{is_sdd}}",
+    "mandatory_audit_before_closure": "{{requires_audit}}",
+    "audit_policy": "risk_based",
+    "audit_output": [
+      "Context status",
+      "Business-rule status",
+      "Code-quality findings",
+      "Test verification",
+      "Confidence report",
+      "Go/No-Go",
+      "Residual risks"
+    ]
+  }
+}

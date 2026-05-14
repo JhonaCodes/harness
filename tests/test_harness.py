@@ -254,6 +254,68 @@ class HarnessCliTests(unittest.TestCase):
         self.assertIn("harness inspect", content)
         self.assertIn("harness run", content)
 
+    def test_cli_converges_through_main_entrypoint(self):
+        wrapper = (ROOT / "scripts" / "harness.py").read_text(encoding="utf-8")
+        main = (ROOT / "scripts" / "main.py").read_text(encoding="utf-8")
+        cli = (ROOT / "scripts" / "harness_core" / "cli.py").read_text(encoding="utf-8")
+        self.assertIn("from main import main", wrapper)
+        self.assertIn("harness_core.cli", main)
+        self.assertIn("class HarnessCli", cli)
+
+    def test_runtime_is_split_into_context_modules(self):
+        required = [
+            "apply.py",
+            "capabilities.py",
+            "cli.py",
+            "commands.py",
+            "constants.py",
+            "decisioning.py",
+            "inspection.py",
+            "io.py",
+            "models.py",
+            "projects.py",
+            "rendering.py",
+        ]
+        for rel in required:
+            with self.subTest(module=rel):
+                self.assertTrue((ROOT / "scripts" / "harness_core" / rel).exists())
+
+    def test_required_project_templates_exist(self):
+        required = [
+            "README.md",
+            "HARNESS.tdd.md",
+            "HARNESS.sdd.md",
+            "init.sh",
+            ".harness/ENTRYPOINT.md",
+            ".harness/config.json",
+            ".harness/workflow.json",
+            ".harness/adapters.json",
+            ".harness/skills.json",
+            ".harness/agents.json",
+            ".harness/docs.json",
+            ".harness/rules.json",
+            ".harness/memory.json",
+            ".harness/agents/leader.md",
+            ".harness/agents/spec_author.md",
+            ".harness/agents/implementer.md",
+            ".harness/agents/reviewer.md",
+            ".harness/agents/auditor.md",
+            "docs/verification.md",
+            "docs/audit.md",
+            "docs/conventions.md",
+            "docs/architecture.md",
+            "docs/specs.md",
+            "progress/current.md",
+            "progress/history.md",
+            "feature_list.json",
+            "CHECKPOINTS.md",
+            "adapters/tool.md",
+        ]
+        for rel in required:
+            with self.subTest(template=rel):
+                path = ROOT / "templates" / rel
+                self.assertTrue(path.exists(), f"Missing template: {rel}")
+
     def test_install_targets_all_installs_selected_llm_entrypoints(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)

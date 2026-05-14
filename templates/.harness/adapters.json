@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "source_of_truth": [
+    "HARNESS.md",
+    ".harness/ENTRYPOINT.md"
+  ],
+  "adapters": []
+}

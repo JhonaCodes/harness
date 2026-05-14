@@ -46,6 +46,24 @@ The runtime is universal. LLM-specific files only teach each tool how to discove
 
 Detailed guide: [Instalar Harness En Cualquier LLM](docs/install-any-llm.md).
 
+## Repository Structure
+
+The CLI converges in `scripts/main.py`. `scripts/harness.py` is only a backward-compatible wrapper.
+
+Runtime code is split by context under `scripts/harness_core/`:
+
+- `cli.py`: argparse assembly and command dispatch.
+- `commands.py`: command handlers.
+- `projects.py`: aliases, repo resolution, and profile detection.
+- `inspection.py`: repository inspection and workflow classification.
+- `decisioning.py`: workflow decision model.
+- `capabilities.py`: skills, agents, docs, rules, and memory registries.
+- `rendering.py`: installed file rendering.
+- `apply.py`: managed file writes and apply reports.
+- `models.py`, `constants.py`, `io.py`: shared models, constants, and JSON persistence.
+
+Installable file templates live in `templates/`, mirroring the files Harness can write into a target project.
+
 ## Use
 
 From any shell:

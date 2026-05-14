@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "project": "{{project}}",
+  "workflow": "{{workflow}}",
+  "profile": "{{profile}}",
+  "source_of_truth": {
+    "contract": "HARNESS.md",
+    "entrypoint": ".harness/ENTRYPOINT.md",
+    "workflow": ".harness/workflow.json",
+    "skills": ".harness/skills.json",
+    "agents": ".harness/agents.json",
+    "docs": ".harness/docs.json",
+    "rules": ".harness/rules.json",
+    "memory": ".harness/memory.json",
+    "adapters": ".harness/adapters.json"
+  },
+  "rules": {
+    "auto_inspect_on_open": true,
+    "simple_installs_no_files": true,
+    "tool_specific_files_are_adapters": true,
+    "human_checkpoint_for_ambiguous_tdd": "{{is_tdd}}",
+    "mandatory_audit_before_closure": "{{requires_audit}}",
+    "audit_policy": "risk_based",
+    "one_feature_at_a_time": "{{is_sdd}}",
+    "human_approval_required_for_spec_ready": "{{is_sdd}}",
+    "review_required_before_done": "{{is_sdd}}",
+    "audit_required_before_done": "{{is_sdd}}"
+  }
+}

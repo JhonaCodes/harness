@@ -23,6 +23,22 @@ REQUIRED_FILES = [
     "install.sh",
     "commands/harness.md",
     "scripts/harness.py",
+    "scripts/main.py",
+    "scripts/harness_core/apply.py",
+    "scripts/harness_core/capabilities.py",
+    "scripts/harness_core/cli.py",
+    "scripts/harness_core/commands.py",
+    "scripts/harness_core/constants.py",
+    "scripts/harness_core/decisioning.py",
+    "scripts/harness_core/inspection.py",
+    "scripts/harness_core/io.py",
+    "scripts/harness_core/models.py",
+    "scripts/harness_core/projects.py",
+    "scripts/harness_core/rendering.py",
+    "templates/HARNESS.tdd.md",
+    "templates/HARNESS.sdd.md",
+    "templates/.harness/ENTRYPOINT.md",
+    "templates/docs/audit.md",
     "workflows/simple.md",
     "workflows/tdd.md",
     "workflows/sdd.md",
@@ -57,14 +73,11 @@ def check_skill_frontmatter(root: Path, errors: list[str]) -> None:
 
 
 def check_python(root: Path, errors: list[str]) -> None:
-    for rel in ["scripts/harness.py", "quick_validate.py"]:
-        path = root / rel
-        if not path.exists():
-            continue
+    for path in [*sorted((root / "scripts").rglob("*.py")), root / "quick_validate.py"]:
         try:
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError as exc:
-            errors.append(f"{rel} syntax error: {exc}")
+            errors.append(f"{path.relative_to(root)} syntax error: {exc}")
 
 
 def check_private_refs(root: Path, errors: list[str]) -> None:
