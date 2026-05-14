@@ -3,8 +3,10 @@
 ## C1 - Harness complete
 
 - [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.
-- [ ] `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/mcps.json` exist.
+- [ ] `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/rules/data_storage.md`, and `.harness/mcps.json` exist.
 - [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, `reviewer.md`, and `auditor.md` exist.
+- [ ] `.harness/agents/tdd_lead.md`, `red_test_author.md`, `green_implementer.md`, and `refactor_specialist.md` exist.
+- [ ] Architecture and audit agents exist in `.harness/agents/` and are registered in `.harness/agents.json`.
 - [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.
 - [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, `docs/verification.md`, and `docs/audit.md` exist.
 - [ ] `./init.sh` passes.
@@ -32,4 +34,4 @@
 
 - [ ] Feature status reflects the true state.
 - [ ] Temporary files and debug leftovers are removed.
-- [ ] Subagent outputs are stored in `progress/`.
+- [ ] Subagent outputs are stored in `progress/` according to `.harness/rules/data_storage.md`.

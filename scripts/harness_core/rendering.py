@@ -85,7 +85,7 @@ run_step() {{
 }}
 
 echo "── Harness validation ({workflow}/{profile}) ─────────────"
-for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json .harness/skills.json .harness/agents.json .harness/docs.json .harness/rules.json .harness/mcps.json docs/verification.md docs/audit.md progress/current.md; do
+for f in HARNESS.md .harness/ENTRYPOINT.md .harness/config.json .harness/workflow.json .harness/skills.json .harness/agents.json .harness/docs.json .harness/rules.json .harness/rules/data_storage.md .harness/mcps.json docs/verification.md docs/audit.md progress/current.md; do
   if [ -f "$f" ]; then ok "Exists $f"; else fail "Missing $f"; EXIT_CODE=1; fi
 done
 {sdd_validation}
@@ -113,6 +113,8 @@ The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific fi
 
 Load selected skills, agents, docs, rules, and MCP contexts from `.harness/*` and `~/.harness/*` before decisions that match their triggers. MCP entries are context references, not tool-specific server installers.
 
+Store state, specs, subagent outputs, audit evidence, generated artifacts, and durable memory according to `.harness/rules/data_storage.md`.
+
 Use RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
 
 1. Write or identify a failing test for the behavior.
@@ -139,6 +141,8 @@ Reason: {decision.reason}
 The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific files are adapters only.
 
 Load selected skills, agents, docs, rules, and MCP contexts from `.harness/*` and `~/.harness/*` before decisions that match their triggers. MCP entries are context references, not tool-specific server installers.
+
+Store state, specs, subagent outputs, audit evidence, generated artifacts, and durable memory according to `.harness/rules/data_storage.md`.
 
 Use strict Spec Driven Development:
 
@@ -181,6 +185,7 @@ Every `done` feature must have reviewer approval and `progress/audit_<feature>.m
                 "agents": ".harness/agents.json",
                 "docs": ".harness/docs.json",
                 "rules": ".harness/rules.json",
+                "data_storage_rule": ".harness/rules/data_storage.md",
                 "mcps": ".harness/mcps.json",
                 "memory": ".harness/memory.json",
                 "adapters": ".harness/adapters.json",
@@ -210,6 +215,145 @@ Every `done` feature must have reviewer approval and `progress/audit_<feature>.m
     def empty_capability_registry() -> str:
         return "[]\n"
 
+    def agent_registry(self, workflow: str) -> str:
+        tdd_agents = [
+            {
+                "name": "tdd-lead",
+                "triggers": ["tdd", "red", "green", "refactor", "test_first", "bug", "fix"],
+                "description": "TDD coordinator agent for RED -> GREEN -> REFACTOR execution.",
+                "path": ".harness/agents/tdd_lead.md",
+                "context": "Use for TDD tasks to coordinate failing test reproduction, minimal implementation, refactor, and mandatory audit handoff.",
+            },
+            {
+                "name": "red-test-author",
+                "triggers": ["red", "failing_test", "reproduce", "test_first", "regression"],
+                "description": "TDD agent that writes or identifies the failing test before implementation.",
+                "path": ".harness/agents/red_test_author.md",
+                "context": "Use before implementation to prove the bug or missing behavior with a focused failing test.",
+            },
+            {
+                "name": "green-implementer",
+                "triggers": ["green", "implement", "minimal_fix", "pass_test"],
+                "description": "TDD agent that makes the smallest implementation change needed to pass the failing test.",
+                "path": ".harness/agents/green_implementer.md",
+                "context": "Use after RED evidence exists to implement the smallest scoped change that passes tests.",
+            },
+            {
+                "name": "refactor-specialist",
+                "triggers": ["refactor", "cleanup", "duplication", "maintainability"],
+                "description": "TDD agent that refactors only after tests are green.",
+                "path": ".harness/agents/refactor_specialist.md",
+                "context": "Use after GREEN to improve structure without changing behavior, while keeping verification green.",
+            },
+        ]
+        architecture_audit_agents = [
+            {
+                "name": "architecture-lead",
+                "triggers": ["architecture", "design", "module", "boundary", "layering", "handler", "service", "repository", "contract"],
+                "description": "Architecture validation agent for project structure and API contracts.",
+                "path": ".harness/agents/architecture_lead.md",
+                "context": "Use before implementation or review when module structure, API contracts, boundaries, or architecture decisions are involved.",
+            },
+            {
+                "name": "blueprint-architect",
+                "triggers": ["blueprint", "blueprints", "server-mcp", "dependency", "coding_rules", "rust_api", "flutter_contract"],
+                "description": "Blueprint validation agent for MCP-backed architecture and coding-rule checks.",
+                "path": ".harness/agents/blueprint_architect.md",
+                "context": "Use when implementation or review depends on registered MCP blueprints, dependency rules, coding rules, or framework patterns.",
+            },
+            {
+                "name": "context-auditor",
+                "triggers": ["audit", "context", "source_of_truth", "scope", "agents", "skills", "mcp", "sdd"],
+                "description": "Audit agent for source of truth, selected Harness entries, and workflow state.",
+                "path": ".harness/agents/context_auditor.md",
+                "context": "Use during mandatory audit to verify context, skill/MCP selection, scope, and traceability.",
+            },
+            {
+                "name": "business-rule-auditor",
+                "triggers": ["audit", "business", "domain", "product", "permission", "ownership", "workflow", "contract"],
+                "description": "Audit agent for domain rules, ownership, permissions, and product invariants.",
+                "path": ".harness/agents/business_rule_auditor.md",
+                "context": "Use during audit when changes affect business behavior, permissions, workflow state, or user-facing contracts.",
+            },
+            {
+                "name": "code-quality-auditor",
+                "triggers": ["audit", "code_quality", "correctness", "maintainability", "security", "regression", "dead_code", "layering"],
+                "description": "Audit agent for correctness, layering, maintainability, security, and regression risk.",
+                "path": ".harness/agents/code_quality_auditor.md",
+                "context": "Use during audit to inspect changed files, architecture boundaries, error handling, maintainability, security risk, and dead code.",
+            },
+            {
+                "name": "test-verifier",
+                "triggers": ["audit", "test", "tests", "verification", "coverage", "regression", "init"],
+                "description": "Audit agent for requirement-to-test mapping and command verification evidence.",
+                "path": ".harness/agents/test_verifier.md",
+                "context": "Use during audit to map requirements to tests, verify init/check evidence, and report missing regression coverage.",
+            },
+            {
+                "name": "confidence-reporter",
+                "triggers": ["audit", "confidence", "risk", "go", "no_go", "go_with_risk", "closure", "final_report"],
+                "description": "Final audit agent for confidence score, residual risk, and go/no-go closure.",
+                "path": ".harness/agents/confidence_reporter.md",
+                "context": "Use at the end of review/audit to combine architecture, context, business, code-quality, and test evidence into a final confidence decision.",
+            },
+        ]
+        entries = [*tdd_agents, *architecture_audit_agents]
+        if workflow == "sdd":
+            entries = [
+                {"name": "leader", "triggers": ["sdd", "feature", "backlog", "coordinate", "decompose", "subagent"], "description": "SDD coordinator agent that decomposes work and launches subagents.", "path": ".harness/agents/leader.md"},
+                {"name": "spec-author", "triggers": ["spec", "requirements", "design", "tasks", "spec_ready"], "description": "SDD spec author agent for requirements, design, and task plans.", "path": ".harness/agents/spec_author.md"},
+                {"name": "implementer", "triggers": ["implement", "implementation", "in_progress", "code", "feature"], "description": "SDD implementation agent for one approved feature.", "path": ".harness/agents/implementer.md"},
+                {"name": "reviewer", "triggers": ["review", "reviewer", "approval", "changes_requested"], "description": "SDD reviewer agent that verifies implementation before audit.", "path": ".harness/agents/reviewer.md"},
+                {"name": "auditor", "triggers": ["audit", "auditor", "go", "no_go", "go_with_risk"], "description": "SDD aggregate auditor agent for final mandatory audit.", "path": ".harness/agents/auditor.md"},
+                *entries,
+            ]
+        return json.dumps(entries, indent=2, ensure_ascii=False) + "\n"
+
+    @staticmethod
+    def rule_registry() -> str:
+        return json.dumps(
+            [
+                {
+                    "name": "data-storage",
+                    "triggers": ["storage", "data", "evidence", "progress", "memory", "artifact", "audit", "sdd", "tdd"],
+                    "description": "Rules for storing Harness state, evidence, agent outputs, and durable notes.",
+                    "path": ".harness/rules/data_storage.md",
+                    "context": "Use for every TDD/SDD task to decide where state, specs, audit evidence, generated artifacts, and durable project notes must be stored.",
+                }
+            ],
+            indent=2,
+            ensure_ascii=False,
+        ) + "\n"
+
+    @staticmethod
+    def data_storage_rule() -> str:
+        return """# Data Storage Rule
+
+Harness state and evidence must be portable, explicit, and reviewable.
+
+## Canonical Locations
+
+- `feature_list.json`: SDD feature state only.
+- `specs/<feature>/`: SDD requirements, design, and tasks only.
+- `progress/current.md`: active session state.
+- `progress/history.md`: completed session summaries.
+- `progress/*_<feature>.md`: subagent outputs, review verdicts, audit verdicts, confidence reports, and verification evidence.
+- `.harness/memory.json`: durable project notes that should influence future tasks.
+- `.harness/{skills,agents,docs,rules,mcps}.json`: capability registries only.
+- `.harness/rules/`: reusable project rules.
+- `.harness/mcp-context/`: local descriptions of when MCP sources must be consulted.
+
+## Hard Rules
+
+- Store subagent results in files under `progress/`; chat-only subagent reports are not closure evidence.
+- Use relative paths inside Harness registries when the file lives in the repo.
+- Do not store secrets, tokens, credentials, private keys, or production personal data in Harness files.
+- Do not store machine-local absolute paths unless the entry intentionally points to a user-local global skill outside the repo.
+- Do not duplicate long generated artifacts in chat; write them to the canonical file and reference the path.
+- Keep specs, progress, audit, and memory separate. Do not use one file as a dumping ground for all state.
+- Every completed TDD/SDD task must leave verification evidence and residual risk notes in `progress/`.
+"""
+
     @staticmethod
     def empty_memory() -> str:
         return json.dumps({"schema_version": 1, "entries": {}}, indent=2, ensure_ascii=False) + "\n"
@@ -230,6 +374,7 @@ Every `done` feature must have reviewer approval and `progress/audit_<feature>.m
                 "review_required_before_done": workflow == "sdd",
                 "mandatory_audit_before_closure": workflow in {"tdd", "sdd"},
                 "audit_policy": "risk_based",
+                "data_storage_rule": ".harness/rules/data_storage.md",
                 "audit_output": ["Context status", "Business-rule status", "Code-quality findings", "Test verification", "Confidence report", "Go/No-Go", "Residual risks"],
             },
         }
@@ -285,6 +430,7 @@ Selected MCPs: {selected_mcps}.
 - Do not skip the TDD ambiguity checkpoint when behavior is unclear.
 - For SDD, do not skip `spec_ready` human approval.
 - Do not mark work `done` without verification, review, and audit evidence.
+- Store Harness state and evidence according to `.harness/rules/data_storage.md`.
 
 {END_MARKER}
 """
@@ -401,6 +547,7 @@ Harness does not hardcode domain architecture rules. Load and apply the selected
 - Keep changes scoped to the active task.
 - Replace obsolete flows instead of preserving outdated behavior by default.
 - Use selected skills, agents, docs, rules, and MCP contexts from the harness decision when available.
+- Store state, specs, subagent outputs, audit evidence, and durable notes according to `.harness/rules/data_storage.md`.
 """
         architecture = """# Architecture
 
@@ -552,6 +699,151 @@ or
 
 `NO-GO -> progress/audit_<feature>.md`
 """
+        if role == "tdd_lead":
+            return """# TDD Lead Agent
+
+You coordinate RED -> GREEN -> REFACTOR for focused bugs and behavior changes.
+
+## Protocol
+
+1. Read `HARNESS.md`, `.harness/ENTRYPOINT.md`, `docs/verification.md`, `docs/audit.md`, and `progress/current.md`.
+2. Identify the smallest behavior under test.
+3. Ensure RED evidence exists before implementation.
+4. Hand off to implementation only after the failing test is documented.
+5. Run or verify `./init.sh` after GREEN and after refactor.
+6. Store evidence in `progress/current.md` or `progress/tdd_<task>.md`.
+7. Trigger mandatory audit before closure.
+"""
+        if role == "red_test_author":
+            return """# Red Test Author Agent
+
+You write or identify the failing test first. You do not implement production code.
+
+## Protocol
+
+1. Read the task, nearest tests, and relevant implementation files.
+2. Add or identify the smallest focused test that fails for the target behavior.
+3. Run the focused test command and capture the failure.
+4. Store RED evidence in `progress/red_<task>.md`.
+"""
+        if role == "green_implementer":
+            return """# Green Implementer Agent
+
+You implement the smallest change needed to pass the RED test.
+
+## Protocol
+
+1. Read RED evidence before editing production code.
+2. Keep changes scoped to the failing behavior.
+3. Preserve existing architecture and local patterns.
+4. Run the focused test and then `./init.sh` when feasible.
+5. Store changed files, tests run, and residual risk in `progress/green_<task>.md`.
+"""
+        if role == "refactor_specialist":
+            return """# Refactor Specialist Agent
+
+You refactor only after tests are green. You do not change behavior.
+
+## Protocol
+
+1. Read GREEN evidence and changed files.
+2. Remove duplication or clarify structure only when it lowers maintenance risk.
+3. Avoid unrelated refactors.
+4. Run the same tests that were green before refactor.
+5. Store refactor notes and verification in `progress/refactor_<task>.md`.
+"""
+        if role == "architecture_lead":
+            return """# Architecture Lead Agent
+
+You validate architecture decisions before implementation.
+
+## Protocol
+
+1. Read `HARNESS.md`, `.harness/ENTRYPOINT.md`, `docs/architecture.md`, `docs/conventions.md`, and the active spec or task context.
+2. Read `.harness/mcps.json` and use registered blueprint MCP contexts whenever architecture or dependency rules are relevant.
+3. Identify affected modules and ownership boundaries.
+4. Flag hidden coupling, duplicated abstractions, misplaced business logic, and contract drift.
+5. Write findings to `progress/architecture_<feature>.md` when a feature exists.
+"""
+        if role == "blueprint_architect":
+            return """# Blueprint Architect Agent
+
+You validate implementation plans against registered MCP blueprints.
+
+## Protocol
+
+1. Read `.harness/mcps.json` and relevant `.harness/mcp-context/*` files.
+2. Determine which blueprints are required for the task.
+3. Query the relevant MCP blueprint context before choosing or approving an approach.
+4. Map blueprint rules to concrete files or modules.
+5. Write findings to `progress/blueprint_<feature>.md` when a feature exists.
+"""
+        if role == "context_auditor":
+            return """# Context Auditor Agent
+
+You audit context only. You do not edit code.
+
+## Protocol
+
+1. Read `HARNESS.md`, `.harness/ENTRYPOINT.md`, `AGENTS.md` when present, `docs/audit.md`, and active progress/spec files.
+2. Verify that required skills, agents, docs, rules, and MCP contexts were selected.
+3. Verify blueprint MCP context was used when blueprint decisions were involved.
+4. Report missing or stale context with evidence.
+5. Write findings to `progress/context_audit_<feature>.md` when a feature exists.
+"""
+        if role == "business_rule_auditor":
+            return """# Business Rule Auditor Agent
+
+You audit domain and product rules only. You do not edit code.
+
+## Protocol
+
+1. Read the active spec, `docs/specs.md`, `docs/conventions.md`, `docs/audit.md`, and related implementation files.
+2. Map each relevant requirement to code and tests.
+3. Verify permissions, ownership checks, workflow state, data invariants, and user-facing constraints.
+4. Report missing tests for business-critical behavior.
+5. Write findings to `progress/business_audit_<feature>.md` when a feature exists.
+"""
+        if role == "code_quality_auditor":
+            return """# Code Quality Auditor Agent
+
+You audit code quality only. You do not edit code.
+
+## Protocol
+
+1. Read modified files and nearest tests.
+2. Verify code follows existing local patterns.
+3. Check layering, error handling, maintainability, security risk, and regression risk.
+4. Report concrete findings with file and line evidence.
+5. Write findings to `progress/code_quality_audit_<feature>.md` when a feature exists.
+"""
+        if role == "test_verifier":
+            return """# Test Verifier Agent
+
+You verify tests and checks only. You do not edit code.
+
+## Protocol
+
+1. Read the active spec or task, changed files, and existing tests.
+2. Map each completed requirement to at least one test or explicit check.
+3. Run `./init.sh` unless current evidence was supplied.
+4. Report failures, skipped checks, and coverage gaps.
+5. Write findings to `progress/test_verification_<feature>.md` when a feature exists.
+"""
+        if role == "confidence_reporter":
+            return """# Confidence Reporter Agent
+
+You produce the final confidence report after review and audits.
+
+## Protocol
+
+1. Read all relevant `progress/*_<feature>.md` files.
+2. Summarize unresolved findings by severity.
+3. Confirm whether `./init.sh` passed.
+4. Produce a confidence score and final gate decision.
+5. Do not mark the feature done; the leader or current operator owns state transitions.
+6. Write findings to `progress/confidence_<feature>.md` when a feature exists.
+"""
         return """# Reviewer Agent
 
 You review only. You do not edit code.
@@ -587,14 +879,26 @@ or
             ".harness/workflow.json": self.workflow_json(workflow, decision, adapters),
             ".harness/adapters.json": self.adapters_json(adapters),
             ".harness/skills.json": self.empty_skills(),
-            ".harness/agents.json": self.empty_capability_registry(),
+            ".harness/agents.json": self.agent_registry(workflow),
             ".harness/docs.json": self.empty_capability_registry(),
-            ".harness/rules.json": self.empty_capability_registry(),
+            ".harness/rules.json": self.rule_registry(),
             ".harness/mcps.json": self.empty_capability_registry(),
             ".harness/memory.json": self.empty_memory(),
+            ".harness/rules/data_storage.md": self.data_storage_rule(),
             "docs/verification.md": docs_map["docs/verification.md"],
             "docs/audit.md": docs_map["docs/audit.md"],
             "progress/current.md": "# Current Harness Session\n\nStatus: idle\n",
+            ".harness/agents/tdd_lead.md": self.agent_file("tdd_lead"),
+            ".harness/agents/red_test_author.md": self.agent_file("red_test_author"),
+            ".harness/agents/green_implementer.md": self.agent_file("green_implementer"),
+            ".harness/agents/refactor_specialist.md": self.agent_file("refactor_specialist"),
+            ".harness/agents/architecture_lead.md": self.agent_file("architecture_lead"),
+            ".harness/agents/blueprint_architect.md": self.agent_file("blueprint_architect"),
+            ".harness/agents/context_auditor.md": self.agent_file("context_auditor"),
+            ".harness/agents/business_rule_auditor.md": self.agent_file("business_rule_auditor"),
+            ".harness/agents/code_quality_auditor.md": self.agent_file("code_quality_auditor"),
+            ".harness/agents/test_verifier.md": self.agent_file("test_verifier"),
+            ".harness/agents/confidence_reporter.md": self.agent_file("confidence_reporter"),
         }
         for adapter in adapters:
             files[adapter["file"]] = self.adapter_entrypoint(adapter, workflow, decision)
@@ -603,7 +907,7 @@ or
             files.update(
                 {
                     "feature_list.json": self.feature_list(root, decision.repo),
-                    "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, and `.harness/mcps.json` exist.\n- [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, `reviewer.md`, and `auditor.md` exist.\n- [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, `docs/verification.md`, and `docs/audit.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Obsolete behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test or check.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n- [ ] The audit verdict exists in `progress/audit_<feature>.md` and is `GO` or accepted `GO-WITH-RISK`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/`.\n",
+                    "CHECKPOINTS.md": "# CHECKPOINTS\n\n## C1 - Harness complete\n\n- [ ] `HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `init.sh`, `feature_list.json`, and `progress/current.md` exist.\n- [ ] `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/rules/data_storage.md`, and `.harness/mcps.json` exist.\n- [ ] `.harness/agents/leader.md`, `spec_author.md`, `implementer.md`, `reviewer.md`, and `auditor.md` exist.\n- [ ] `.harness/agents/tdd_lead.md`, `red_test_author.md`, `green_implementer.md`, and `refactor_specialist.md` exist.\n- [ ] Architecture and audit agents exist in `.harness/agents/` and are registered in `.harness/agents.json`.\n- [ ] Tool-specific adapters exist only when requested in `.harness/adapters.json`.\n- [ ] `docs/architecture.md`, `docs/conventions.md`, `docs/specs.md`, `docs/verification.md`, and `docs/audit.md` exist.\n- [ ] `./init.sh` passes.\n\n## C2 - State coherent\n\n- [ ] At most one feature is `in_progress`.\n- [ ] `progress/current.md` describes the active session or is idle.\n- [ ] `progress/history.md` contains completed session summaries.\n\n## C3 - Architecture respected\n\n- [ ] Changes stay within documented project boundaries.\n- [ ] Obsolete behavior is replaced rather than preserved by default.\n- [ ] No unrelated refactors are mixed into the active feature.\n\n## C4 - Verification real\n\n- [ ] Every completed requirement maps to at least one concrete test or check.\n- [ ] `./init.sh` was run and passed.\n- [ ] The reviewer verdict exists in `progress/review_<feature>.md`.\n- [ ] The audit verdict exists in `progress/audit_<feature>.md` and is `GO` or accepted `GO-WITH-RISK`.\n\n## C5 - Session closed cleanly\n\n- [ ] Feature status reflects the true state.\n- [ ] Temporary files and debug leftovers are removed.\n- [ ] Subagent outputs are stored in `progress/` according to `.harness/rules/data_storage.md`.\n",
                     "progress/history.md": "# Harness History\n\n",
                     "specs/.gitkeep": "",
                     ".harness/agents/leader.md": self.agent_file("leader"),

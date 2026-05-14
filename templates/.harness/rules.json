@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "name": "data-storage",
+    "triggers": [
+      "storage",
+      "data",
+      "evidence",
+      "progress",
+      "memory",
+      "artifact",
+      "audit",
+      "sdd",
+      "tdd"
+    ],
+    "description": "Rules for storing Harness state, evidence, agent outputs, and durable notes.",
+    "path": ".harness/rules/data_storage.md",
+    "context": "Use for every TDD/SDD task to decide where state, specs, audit evidence, generated artifacts, and durable project notes must be stored."
+  }
+]

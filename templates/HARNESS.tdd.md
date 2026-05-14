@@ -12,6 +12,8 @@ The source of truth is this file plus `.harness/ENTRYPOINT.md`. Tool-specific fi
 
 Load selected skills, agents, docs, rules, and MCP contexts from `.harness/*` and `~/.harness/*` before decisions that match their triggers. MCP entries are context references, not tool-specific server installers.
 
+Store state, specs, subagent outputs, audit evidence, generated artifacts, and durable memory according to `.harness/rules/data_storage.md`.
+
 Use RED -> human checkpoint if expected behavior is ambiguous -> GREEN -> REFACTOR -> mandatory audit.
 
 1. Write or identify a failing test for the behavior.

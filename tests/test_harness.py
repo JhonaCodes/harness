@@ -128,8 +128,16 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/.harness/agents.json", result.stdout)
             self.assertIn("/.harness/docs.json", result.stdout)
             self.assertIn("/.harness/rules.json", result.stdout)
+            self.assertIn("/.harness/rules/data_storage.md", result.stdout)
             self.assertIn("/.harness/mcps.json", result.stdout)
             self.assertIn("/.harness/memory.json", result.stdout)
+            self.assertIn("/.harness/agents/tdd_lead.md", result.stdout)
+            self.assertIn("/.harness/agents/red_test_author.md", result.stdout)
+            self.assertIn("/.harness/agents/green_implementer.md", result.stdout)
+            self.assertIn("/.harness/agents/refactor_specialist.md", result.stdout)
+            self.assertIn("/.harness/agents/architecture_lead.md", result.stdout)
+            self.assertIn("/.harness/agents/context_auditor.md", result.stdout)
+            self.assertIn("/.harness/agents/test_verifier.md", result.stdout)
             self.assertIn("/docs/audit.md", result.stdout)
 
     def test_adapters_none_installs_only_universal_entrypoints(self):
@@ -184,8 +192,46 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("/specs/.gitkeep", result.stdout)
             self.assertIn("/.harness/agents/leader.md", result.stdout)
             self.assertIn("/.harness/agents/auditor.md", result.stdout)
+            self.assertIn("/.harness/agents/architecture_lead.md", result.stdout)
+            self.assertIn("/.harness/agents/blueprint_architect.md", result.stdout)
+            self.assertIn("/.harness/agents/confidence_reporter.md", result.stdout)
+            self.assertIn("/.harness/rules/data_storage.md", result.stdout)
             forbidden_agent_path = "/" + ".claude" + "/agents/leader.md"
             self.assertNotIn(forbidden_agent_path, result.stdout)
+
+    def test_installed_harness_registers_default_tdd_sdd_audit_agents_and_storage_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            result = self.run_harness("run", "--project", str(project), "--task", "triage github issues and create API contract specs", "--adapters", "none")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            agents = json.loads((project / ".harness" / "agents.json").read_text(encoding="utf-8"))
+            names = {item["name"] for item in agents}
+            for name in {
+                "leader",
+                "spec-author",
+                "implementer",
+                "reviewer",
+                "auditor",
+                "tdd-lead",
+                "red-test-author",
+                "green-implementer",
+                "refactor-specialist",
+                "architecture-lead",
+                "blueprint-architect",
+                "context-auditor",
+                "business-rule-auditor",
+                "code-quality-auditor",
+                "test-verifier",
+                "confidence-reporter",
+            }:
+                self.assertIn(name, names)
+            rules = json.loads((project / ".harness" / "rules.json").read_text(encoding="utf-8"))
+            self.assertEqual(rules[0]["name"], "data-storage")
+            workflow = json.loads((project / ".harness" / "workflow.json").read_text(encoding="utf-8"))
+            self.assertEqual(workflow["rules"]["data_storage_rule"], ".harness/rules/data_storage.md")
+            init_script = (project / "init.sh").read_text(encoding="utf-8")
+            self.assertIn(".harness/rules/data_storage.md", init_script)
+            self.assertTrue((project / ".harness" / "rules" / "data_storage.md").exists())
 
     def test_workflow_json_includes_audit_policy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -411,11 +457,23 @@ class HarnessCliTests(unittest.TestCase):
             ".harness/rules.json",
             ".harness/mcps.json",
             ".harness/memory.json",
+            ".harness/rules/data_storage.md",
+            ".harness/agents/tdd_lead.md",
+            ".harness/agents/red_test_author.md",
+            ".harness/agents/green_implementer.md",
+            ".harness/agents/refactor_specialist.md",
             ".harness/agents/leader.md",
             ".harness/agents/spec_author.md",
             ".harness/agents/implementer.md",
             ".harness/agents/reviewer.md",
             ".harness/agents/auditor.md",
+            ".harness/agents/architecture_lead.md",
+            ".harness/agents/blueprint_architect.md",
+            ".harness/agents/context_auditor.md",
+            ".harness/agents/business_rule_auditor.md",
+            ".harness/agents/code_quality_auditor.md",
+            ".harness/agents/test_verifier.md",
+            ".harness/agents/confidence_reporter.md",
             "docs/verification.md",
             "docs/audit.md",
             "docs/conventions.md",

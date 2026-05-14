@@ -93,8 +93,8 @@ python3 <this-skill>/scripts/harness.py register --alias api --path /path/to/pro
 ## What Gets Installed
 
 - `simple`: no files; writes only a dry-run/report message when requested.
-- `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/mcps.json`, `.harness/memory.json`), `docs/verification.md`, `docs/audit.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
-- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, and universal roles in `.harness/agents/{leader,spec_author,implementer,reviewer,auditor}.md`.
+- `tdd`: universal runtime (`HARNESS.md`, `.harness/ENTRYPOINT.md`, `.harness/config.json`, `.harness/workflow.json`, `.harness/adapters.json`, `.harness/skills.json`, `.harness/agents.json`, `.harness/docs.json`, `.harness/rules.json`, `.harness/mcps.json`, `.harness/memory.json`), TDD agents (`tdd_lead`, `red_test_author`, `green_implementer`, `refactor_specialist`), default architecture/audit agent profiles, `.harness/rules/data_storage.md`, `docs/verification.md`, `docs/audit.md`, `init.sh`, `progress/current.md`, plus optional adapters from `--adapters`.
+- `sdd`: TDD files plus `feature_list.json`, `CHECKPOINTS.md`, `docs/specs.md`, `docs/architecture.md`, `docs/conventions.md`, `progress/history.md`, `specs/.gitkeep`, universal SDD roles in `.harness/agents/{leader,spec_author,implementer,reviewer,auditor}.md`, and registered architecture/audit agent profiles.
 
 Adapter options:
 
@@ -103,6 +103,10 @@ Adapter options:
 - `--adapters none`: install no tool-specific adapter files.
 
 `HARNESS.md` and `.harness/ENTRYPOINT.md` are always the source of truth. Tool-specific files are adapters only.
+
+Agent files in `.harness/agents/` are reusable profiles. They become subagents only when a runtime with delegation support launches them for a concrete task.
+
+The data-storage rule is installed by default for TDD and SDD. It defines where state, specs, progress, audit evidence, subagent outputs, generated artifacts, and durable memory belong.
 
 ## Safety
 

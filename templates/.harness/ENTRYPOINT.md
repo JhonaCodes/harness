@@ -33,5 +33,6 @@ Selected MCPs: {{selected_mcps}}.
 - Do not skip the TDD ambiguity checkpoint when behavior is unclear.
 - For SDD, do not skip `spec_ready` human approval.
 - Do not mark work `done` without verification, review, and audit evidence.
+- Store Harness state and evidence according to `.harness/rules/data_storage.md`.
 
 <!-- END HARNESS_MANAGED -->
