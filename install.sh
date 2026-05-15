@@ -352,4 +352,15 @@ fi
 if [ "$MANUAL_REQUESTED" -eq 1 ]; then
   echo "Manual setup instructions printed."
 fi
-echo "Add $(display_path "$BIN_DIR") to PATH if needed."
+if command -v harness >/dev/null 2>&1; then
+  echo ""
+  echo "✓ harness is available globally on your PATH."
+  echo "  Quick start: cd your-project && harness init"
+else
+  echo ""
+  echo "⚠ harness is NOT in PATH yet."
+  echo "  Add this to your shell profile (~/.zshrc or ~/.bashrc):"
+  echo "    export PATH=\"$BIN_DIR:\$PATH\""
+  echo "  Then open a new terminal or run: source ~/.zshrc"
+  echo "  Or call the CLI directly: $BIN_DIR/harness --help"
+fi

@@ -138,22 +138,32 @@ This installs the runtime and CLI, then prints a ready-to-copy prompt for any LL
 
 ## Use From CLI
 
+The fastest way is `harness init` from inside the project:
+
+```bash
+cd your-project
+harness init                       # installs SDD scaffolding (superset of TDD) with default adapters
+harness init --workflow tdd        # only install TDD scaffolding
+harness init --dry-run             # show what would be written without writing
+harness init --detect-all-llms     # also inject the Harness block into .cursorrules, .windsurfrules, .junie/guidelines.md, .roo/rules/harness.md when present
+```
+
 Inspect a project without writing files:
 
 ```bash
-harness inspect --project /path/to/project --task "fix failing login test"
+harness inspect --project . --task "fix failing login test"
 ```
 
 Dry-run the selected workflow:
 
 ```bash
-harness run --project /path/to/project --task "fix failing login test" --dry-run
+harness run --project . --task "fix failing login test" --dry-run
 ```
 
 Apply the selected workflow:
 
 ```bash
-harness run --project /path/to/project --task "fix failing login test"
+harness run --project . --task "fix failing login test"
 ```
 
 Use a GitHub repository:
@@ -167,6 +177,35 @@ Register a local alias:
 ```bash
 harness register --alias api --path /path/to/project
 harness run --project api --task "review current issues and implement them"
+```
+
+### Simplified registry commands
+
+After install, register skills/agents/docs/rules/mcps with a short syntax. `--project` defaults to the current directory; `--triggers` is derived from the name when omitted; `--path` accepts short-forms (`agent:<name>`, `mcp:<server>`, `/slash-command`, or a filesystem path).
+
+```bash
+harness agent add rn-expert agent:rn-expert
+harness mcp add server-mcp mcp:server-mcp --context "Use before architecture decisions"
+harness rule add ui-audit /path/to/SKILL.md --triggers widget,ui
+```
+
+Bulk import from a YAML or JSON file:
+
+```yaml
+# .harness/imports.yaml
+- kind: agent
+  name: rn-expert
+  triggers: [reactive_notifier, viewmodel, mvvm]
+  path: agent:rn-expert
+- kind: mcp
+  name: server-mcp
+  triggers: [blueprint, architecture]
+  path: mcp:server-mcp
+  context: "Mandatory blueprints before framework code"
+```
+
+```bash
+harness import .harness/imports.yaml
 ```
 
 ## Apply Harness To A Project
@@ -189,7 +228,7 @@ For `tdd`, Harness installs the minimum project runtime:
 - `.harness/memory.json`
 - `docs/verification.md`
 - `docs/audit.md`
-- `init.sh`
+- `scripts/init.sh` (created with the `scripts/` directory if missing)
 - `progress/current.md`
 
 For `sdd`, Harness installs the TDD runtime plus:

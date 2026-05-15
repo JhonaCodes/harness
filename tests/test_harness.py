@@ -229,7 +229,7 @@ class HarnessCliTests(unittest.TestCase):
             self.assertEqual(rules[0]["name"], "data-storage")
             workflow = json.loads((project / ".harness" / "workflow.json").read_text(encoding="utf-8"))
             self.assertEqual(workflow["rules"]["data_storage_rule"], ".harness/rules/data_storage.md")
-            init_script = (project / "init.sh").read_text(encoding="utf-8")
+            init_script = (project / "scripts" / "init.sh").read_text(encoding="utf-8")
             self.assertIn(".harness/rules/data_storage.md", init_script)
             self.assertTrue((project / ".harness" / "rules" / "data_storage.md").exists())
 
@@ -561,6 +561,199 @@ class HarnessCliTests(unittest.TestCase):
             self.assertIn("Installed LLM entrypoints: none", output)
             self.assertTrue((home / ".local" / "bin" / "harness").exists())
             self.assertFalse((home / ".codex" / "skills" / "harness").exists())
+
+
+    # ---- New tests for Fix 1, 4, 6, 8, 9, 10 ----
+
+    def test_init_sh_path_is_scripts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            result = self.run_harness(
+                "run", "--project", str(project),
+                "--task", "triage github issues and create API contract specs",
+                "--adapters", "none",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((project / "scripts" / "init.sh").exists(),
+                            "scripts/init.sh must exist")
+            self.assertFalse((project / "init.sh").exists(),
+                             "init.sh must not be written at project root")
+            mode = (project / "scripts" / "init.sh").stat().st_mode
+            self.assertTrue(mode & 0o111, "scripts/init.sh must be executable")
+
+    def test_init_sh_runs_from_project_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.run_harness(
+                "run", "--project", str(project),
+                "--task", "fix failing login test",
+                "--adapters", "none", "--profile", "generic",
+            )
+            script = project / "scripts" / "init.sh"
+            self.assertTrue(script.exists())
+            # Execute from project root; the script must cd internally
+            result = subprocess.run(
+                ["bash", "scripts/init.sh"],
+                cwd=str(project),
+                check=False, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 0,
+                             f"scripts/init.sh failed:\n{result.stdout}\n{result.stderr}")
+            self.assertIn("Harness environment ready", result.stdout)
+
+    def test_adapter_idempotent_after_double_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            for _ in range(2):
+                result = self.run_harness(
+                    "run", "--project", str(project),
+                    "--task", "fix failing login test",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+            claude_md = (project / "CLAUDE.md").read_text(encoding="utf-8")
+            self.assertEqual(claude_md.count("# Claude Adapter"), 1,
+                             f"Duplicate adapter heading:\n{claude_md}")
+            self.assertEqual(claude_md.count("<!-- BEGIN HARNESS_MANAGED -->"), 1)
+
+    def test_sdd_superset_after_tdd_preserves_custom_registry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.run_harness(
+                "run", "--project", str(project),
+                "--task", "fix failing login test",
+                "--workflow", "tdd",
+            )
+            # Register a custom agent that must survive the sdd re-run.
+            self.run_harness(
+                "agent", "add",
+                "--project", str(project),
+                "--name", "custom-rn-expert",
+                "--triggers", "reactive",
+                "--path", "agent:custom-rn-expert",
+            )
+            result = self.run_harness(
+                "run", "--project", str(project),
+                "--task", "design and implement a new module with specs",
+                "--workflow", "sdd",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for rel in [
+                "feature_list.json",
+                "CHECKPOINTS.md",
+                "specs/.gitkeep",
+                ".harness/agents/leader.md",
+                ".harness/agents/spec_author.md",
+                ".harness/agents/implementer.md",
+                ".harness/agents/reviewer.md",
+                ".harness/agents/auditor.md",
+            ]:
+                self.assertTrue((project / rel).exists(), f"missing SDD file: {rel}")
+            agents = json.loads(
+                (project / ".harness" / "agents.json").read_text(encoding="utf-8")
+            )
+            names = {item["name"] for item in agents}
+            self.assertIn("custom-rn-expert", names,
+                          "custom agent must be preserved across sdd re-run")
+
+    def test_harness_init_no_args_installs_sdd_scaffolding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            result = subprocess.run(
+                ["python3", str(SCRIPT), "init"],
+                cwd=str(project),
+                check=False, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((project / "scripts" / "init.sh").exists())
+            self.assertTrue((project / "feature_list.json").exists())
+            self.assertTrue((project / ".harness" / "agents" / "leader.md").exists())
+            self.assertTrue((project / "CLAUDE.md").exists())
+
+    def test_adapter_block_instructs_inspect_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.run_harness(
+                "run", "--project", str(project),
+                "--task", "fix failing login test",
+            )
+            claude = (project / "CLAUDE.md").read_text(encoding="utf-8")
+            self.assertIn("harness inspect --project . --task", claude)
+            self.assertIn("mandatory if installed", claude)
+            # The inspect command must appear before any "Default fallback" line
+            inspect_idx = claude.index("harness inspect --project . --task")
+            fallback_idx = claude.index("Default fallback")
+            self.assertLess(inspect_idx, fallback_idx)
+
+    def test_detect_all_llms_injects_into_cursorrules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project / ".cursorrules").write_text(
+                "# My Cursor Rules\n\nUse 2-space indent.\n", encoding="utf-8"
+            )
+            result = self.run_harness(
+                "run", "--project", str(project),
+                "--task", "fix failing login test",
+                "--detect-all-llms",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (project / ".cursorrules").read_text(encoding="utf-8")
+            self.assertIn("BEGIN HARNESS_MANAGED", content)
+            self.assertIn("Use 2-space indent.", content)
+            # User content must survive; harness block at top after H1
+            self.assertTrue(
+                content.index("BEGIN HARNESS_MANAGED") < content.index("Use 2-space indent.")
+            )
+
+    def test_registry_add_with_positional_and_auto_triggers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project / ".harness").mkdir()
+            (project / ".harness" / "agents.json").write_text("[]\n")
+            result = self.run_harness(
+                "agent", "add",
+                "rn-expert", "agent:rn-expert",
+                "--project", str(project),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            registry = json.loads(
+                (project / ".harness" / "agents.json").read_text(encoding="utf-8")
+            )
+            entry = next(e for e in registry if e["name"] == "rn-expert")
+            self.assertEqual(entry["path"], "agent:rn-expert")
+            self.assertIn("rn", entry["triggers"])
+            self.assertIn("expert", entry["triggers"])
+
+    def test_version_flag_reports_semver_and_runtime_info(self):
+        result = self.run_harness("--version")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("harness 0.1.0", result.stdout)
+        self.assertIn("Python:", result.stdout)
+        self.assertIn("Runtime:", result.stdout)
+        self.assertIn("Config dir:", result.stdout)
+        # Short flag equivalent
+        result_short = self.run_harness("-V")
+        self.assertEqual(result_short.returncode, 0, result_short.stderr)
+        self.assertIn("harness 0.1.0", result_short.stdout)
+
+    def test_no_framework_specific_default_triggers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            self.run_harness(
+                "run", "--project", str(project),
+                "--task", "design and implement a new module with specs",
+                "--adapters", "none",
+            )
+            agents = json.loads(
+                (project / ".harness" / "agents.json").read_text(encoding="utf-8")
+            )
+            for entry in agents:
+                trigs = set(entry["triggers"])
+                self.assertFalse(
+                    trigs & {"flutter_contract", "rust_api", "reactive_notifier", "dart"},
+                    f"framework-specific trigger leaked in default agent {entry['name']}: {trigs}"
+                )
 
 
 if __name__ == "__main__":
